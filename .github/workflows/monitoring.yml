@@ -1,0 +1,327 @@
+name: Post-Release Monitoring
+
+on:
+  schedule:
+    # Daily security check at 2 AM UTC
+    - cron: '0 2 * * *'
+    # Weekly maintenance check every Monday at 10 AM UTC
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+    inputs:
+      check_type:
+        description: 'Type of check to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - security
+          - performance
+          - dependencies
+
+jobs:
+  security-audit:
+    if: github.event.schedule == '0 2 * * *' || github.event.inputs.check_type == 'security' || github.event.inputs.check_type == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit
+        id: audit
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level moderate > audit-report.txt 2>&1 || echo "AUDIT_FAILED=true" >> $GITHUB_OUTPUT
+          cat audit-report.txt
+
+      - name: Check for vulnerabilities
+        run: |
+          if grep -q "found.*vulnerabilities" audit-report.txt; then
+            echo "VULNERABILITIES_FOUND=true" >> $GITHUB_ENV
+          fi
+
+      - name: Create security issue
+        if: env.VULNERABILITIES_FOUND == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const auditReport = fs.readFileSync('audit-report.txt', 'utf8');
+            
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Security Vulnerabilities Detected - ${new Date().toISOString().split('T')[0]}`,
+              body: `## Security Audit Report
+              
+Automated security scan detected vulnerabilities that require attention.
+
+### Audit Results
+\`\`\`
+${auditReport}
+\`\`\`
+
+### Action Required
+1. Review the vulnerabilities listed above
+2. Update affected packages: \`npm update\`
+3. Run \`npm audit fix\` for automatic fixes
+4. For manual fixes, check each package's security advisory
+5. Re-run tests after updates
+6. Close this issue once vulnerabilities are resolved
+
+### Priority
+- **Critical/High**: Fix within 24 hours
+- **Moderate**: Fix within 1 week
+- **Low**: Fix in next maintenance cycle
+
+/cc @${context.actor}`,
+              labels: ['security', 'automated', 'high-priority']
+            });
+            
+            console.log(`Created security issue #${issue.data.number}`);
+
+  dependency-check:
+    if: github.event.schedule == '0 10 * * 1' || github.event.inputs.check_type == 'dependencies' || github.event.inputs.check_type == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for outdated packages
+        id: outdated
+        run: |
+          echo "Checking for outdated packages..."
+          npm outdated > outdated-report.txt 2>&1 || echo "OUTDATED_FOUND=true" >> $GITHUB_OUTPUT
+          cat outdated-report.txt
+
+      - name: Generate dependency report
+        run: |
+          echo "# Dependency Status Report" > dependency-report.md
+          echo "Generated: $(date)" >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          if [ -s outdated-report.txt ]; then
+            echo "## Outdated Packages" >> dependency-report.md
+            echo "\`\`\`" >> dependency-report.md
+            cat outdated-report.txt >> dependency-report.md
+            echo "\`\`\`" >> dependency-report.md
+          else
+            echo "## Status: All packages are up to date ✅" >> dependency-report.md
+          fi
+
+      - name: Upload dependency report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-report
+          path: dependency-report.md
+
+  performance-check:
+    if: github.event.schedule == '0 10 * * 1' || github.event.inputs.check_type == 'performance' || github.event.inputs.check_type == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension
+        run: npm run build:prod
+
+      - name: Analyze bundle size
+        run: |
+          echo "# Bundle Size Analysis" > bundle-analysis.md
+          echo "Generated: $(date)" >> bundle-analysis.md
+          echo "" >> bundle-analysis.md
+          
+          # Calculate total size
+          total_size=$(du -sb dist | cut -f1)
+          total_kb=$((total_size / 1024))
+          
+          echo "## Total Bundle Size: ${total_kb} KB" >> bundle-analysis.md
+          echo "" >> bundle-analysis.md
+          
+          # Size breakdown
+          echo "## File Breakdown" >> bundle-analysis.md
+          echo "\`\`\`" >> bundle-analysis.md
+          find dist -type f -exec du -h {} + | sort -hr >> bundle-analysis.md
+          echo "\`\`\`" >> bundle-analysis.md
+          
+          # Size warnings
+          if [ $total_kb -gt 5120 ]; then  # 5MB
+            echo "" >> bundle-analysis.md
+            echo "⚠️ **Warning**: Bundle size exceeds 5MB Chrome Web Store limit" >> bundle-analysis.md
+          elif [ $total_kb -gt 2048 ]; then  # 2MB
+            echo "" >> bundle-analysis.md
+            echo "⚠️ **Warning**: Bundle size is large (>2MB), consider optimization" >> bundle-analysis.md
+          fi
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis
+          path: bundle-analysis.md
+
+  code-quality-check:
+    if: github.event.inputs.check_type == 'full' || github.event.schedule == '0 10 * * 1'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run type checking
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+  weekly-report:
+    if: github.event.schedule == '0 10 * * 1'
+    needs: [security-audit, dependency-check, performance-check, code-quality-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate weekly summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let summary = `# 📊 Weekly Monitoring Report - ${new Date().toISOString().split('T')[0]}\n\n`;
+            
+            // Security status
+            summary += `## 🔒 Security Status\n`;
+            try {
+              const securityJobs = await github.rest.actions.listJobsForWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId
+              });
+              
+              const securityJob = securityJobs.data.jobs.find(job => job.name === 'security-audit');
+              if (securityJob) {
+                summary += `- Security Audit: ${securityJob.conclusion === 'success' ? '✅ Passed' : '❌ Issues Found'}\n`;
+              }
+            } catch (error) {
+              summary += `- Security Audit: ⚠️ Could not determine status\n`;
+            }
+            
+            // Dependency status
+            summary += `\n## 📦 Dependencies\n`;
+            try {
+              if (fs.existsSync('dependency-report/dependency-report.md')) {
+                const depReport = fs.readFileSync('dependency-report/dependency-report.md', 'utf8');
+                if (depReport.includes('All packages are up to date')) {
+                  summary += `- All packages up to date ✅\n`;
+                } else {
+                  summary += `- Outdated packages found ⚠️\n`;
+                }
+              }
+            } catch (error) {
+              summary += `- Could not read dependency report\n`;
+            }
+            
+            // Bundle size status
+            summary += `\n## 📊 Performance\n`;
+            try {
+              if (fs.existsSync('bundle-analysis/bundle-analysis.md')) {
+                const bundleReport = fs.readFileSync('bundle-analysis/bundle-analysis.md', 'utf8');
+                const sizeMatch = bundleReport.match(/Total Bundle Size: (\d+) KB/);
+                if (sizeMatch) {
+                  const sizeKB = parseInt(sizeMatch[1]);
+                  if (sizeKB < 1024) {
+                    summary += `- Bundle size: ${sizeKB} KB ✅\n`;
+                  } else if (sizeKB < 2048) {
+                    summary += `- Bundle size: ${sizeKB} KB ⚠️\n`;
+                  } else {
+                    summary += `- Bundle size: ${sizeKB} KB ❌\n`;
+                  }
+                }
+              }
+            } catch (error) {
+              summary += `- Could not read bundle analysis\n`;
+            }
+            
+            summary += `\n## 🎯 Action Items\n`;
+            summary += `- [ ] Review any security issues\n`;
+            summary += `- [ ] Update outdated dependencies if needed\n`;
+            summary += `- [ ] Monitor user feedback and reviews\n`;
+            summary += `- [ ] Check Chrome Web Store analytics\n`;
+            
+            summary += `\n---\n*This report was generated automatically by the monitoring system.*`;
+            
+            // Create or update monitoring issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'monitoring,weekly-report',
+              state: 'open'
+            });
+            
+            const title = `📊 Weekly Monitoring Report - ${new Date().toISOString().split('T')[0]}`;
+            
+            if (issues.data.length > 0) {
+              // Update existing issue
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                title: title,
+                body: summary
+              });
+              console.log(`Updated monitoring issue #${issues.data[0].number}`);
+            } else {
+              // Create new issue
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: summary,
+                labels: ['monitoring', 'weekly-report']
+              });
+              console.log(`Created monitoring issue #${issue.data.number}`);
+            }

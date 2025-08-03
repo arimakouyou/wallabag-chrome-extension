@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallabag Extension Promotional Images</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f0f0;
+        }
+        
+        .promo-container {
+            margin: 20px auto;
+            position: relative;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .promo-440 {
+            width: 440px;
+            height: 280px;
+        }
+        
+        .promo-920 {
+            width: 920px;
+            height: 680px;
+        }
+        
+        .marquee {
+            width: 1400px;
+            height: 560px;
+        }
+        
+        .promo-content {
+            height: 100%;
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: white;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .promo-content::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .text-content {
+            flex: 1;
+            z-index: 2;
+        }
+        
+        .main-title {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            line-height: 1.2;
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            opacity: 0.9;
+            margin-bottom: 24px;
+            font-weight: 400;
+        }
+        
+        .features {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .feature {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+        }
+        
+        .feature-icon {
+            width: 20px;
+            height: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .visual-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .browser-mockup {
+            width: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            overflow: hidden;
+            transform: perspective(1000px) rotateY(-15deg) rotateX(5deg);
+        }
+        
+        .browser-header {
+            height: 32px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 6px;
+        }
+        
+        .browser-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .dot-1 { background: #ff5f57; }
+        .dot-2 { background: #ffbd2e; }
+        .dot-3 { background: #28ca42; }
+        
+        .browser-content {
+            padding: 20px;
+            background: white;
+        }
+        
+        .mock-article {
+            margin-bottom: 16px;
+        }
+        
+        .mock-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .mock-text {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin-bottom: 4px;
+        }
+        
+        .mock-text:nth-child(3) { width: 90%; }
+        .mock-text:nth-child(4) { width: 70%; }
+        .mock-text:nth-child(5) { width: 85%; }
+        
+        .extension-popup {
+            position: absolute;
+            top: -10px;
+            right: -20px;
+            width: 160px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            padding: 12px;
+            transform: scale(0.8);
+        }
+        
+        .popup-header-mini {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .popup-icon-mini {
+            width: 16px;
+            height: 16px;
+            background: #1976d2;
+            border-radius: 3px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .save-button-mini {
+            width: 100%;
+            padding: 8px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+        
+        .status-mini {
+            font-size: 10px;
+            color: #4caf50;
+            text-align: center;
+        }
+        
+        /* Large promo styles */
+        .promo-920 .main-title {
+            font-size: 48px;
+        }
+        
+        .promo-920 .subtitle {
+            font-size: 22px;
+        }
+        
+        .promo-920 .browser-mockup {
+            width: 400px;
+        }
+        
+        /* Marquee styles */
+        .marquee .promo-content {
+            padding: 80px;
+        }
+        
+        .marquee .main-title {
+            font-size: 64px;
+        }
+        
+        .marquee .subtitle {
+            font-size: 28px;
+        }
+        
+        .marquee .browser-mockup {
+            width: 500px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 440x280 Promotional Image -->
+    <div class="promo-container promo-440" id="promo-440">
+        <div class="promo-content">
+            <div class="text-content">
+                <h1 class="main-title">Wallabag<br>Saver</h1>
+                <p class="subtitle">ワンクリックで<br>記事を保存</p>
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-icon">✓</div>
+                        <span>簡単インストール</span>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">⚡</div>
+                        <span>高速保存</span>
+                    </div>
+                </div>
+            </div>
+            <div class="visual-content">
+                <div class="browser-mockup">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-1"></div>
+                        <div class="browser-dot dot-2"></div>
+                        <div class="browser-dot dot-3"></div>
+                    </div>
+                    <div class="browser-content">
+                        <div class="mock-article">
+                            <div class="mock-title">興味深い記事タイトル</div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                        </div>
+                    </div>
+                    <div class="extension-popup">
+                        <div class="popup-header-mini">
+                            <div class="popup-icon-mini">W</div>
+                            <span>Wallabag</span>
+                        </div>
+                        <button class="save-button-mini">保存</button>
+                        <div class="status-mini">✓ 保存完了</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 920x680 Large Promotional Image -->
+    <div class="promo-container promo-920" id="promo-920">
+        <div class="promo-content">
+            <div class="text-content">
+                <h1 class="main-title">Wallabag Saver</h1>
+                <p class="subtitle">Chrome拡張機能で記事を簡単保存</p>
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-icon">🚀</div>
+                        <span>ワンクリック保存 - 気になる記事を瞬時に保存</span>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">🔒</div>
+                        <span>安全な認証 - セキュアなWallabag連携</span>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">📱</div>
+                        <span>デバイス同期 - どこからでもアクセス可能</span>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">⚡</div>
+                        <span>高速処理 - 軽量で高性能な設計</span>
+                    </div>
+                </div>
+            </div>
+            <div class="visual-content">
+                <div class="browser-mockup">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-1"></div>
+                        <div class="browser-dot dot-2"></div>
+                        <div class="browser-dot dot-3"></div>
+                    </div>
+                    <div class="browser-content">
+                        <div class="mock-article">
+                            <div class="mock-title">技術記事: 最新のWeb開発トレンド</div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                        </div>
+                    </div>
+                    <div class="extension-popup">
+                        <div class="popup-header-mini">
+                            <div class="popup-icon-mini">W</div>
+                            <span>Wallabag</span>
+                        </div>
+                        <button class="save-button-mini">このページを保存</button>
+                        <div class="status-mini">✓ 正常に保存されました</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1400x560 Marquee Image -->
+    <div class="promo-container marquee" id="marquee">
+        <div class="promo-content">
+            <div class="text-content">
+                <h1 class="main-title">Wallabag Saver</h1>
+                <p class="subtitle">Chrome拡張機能で記事を簡単保存・管理</p>
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-icon">📚</div>
+                        <span>記事を整理してオフライン読書を実現</span>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">🎯</div>
+                        <span>気になるコンテンツを見逃さない</span>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">🌐</div>
+                        <span>Wallabagと完全統合された体験</span>
+                    </div>
+                </div>
+            </div>
+            <div class="visual-content">
+                <div class="browser-mockup">
+                    <div class="browser-header">
+                        <div class="browser-dot dot-1"></div>
+                        <div class="browser-dot dot-2"></div>
+                        <div class="browser-dot dot-3"></div>
+                    </div>
+                    <div class="browser-content">
+                        <div class="mock-article">
+                            <div class="mock-title">必読: 開発者のための新しいツール</div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                            <div class="mock-text"></div>
+                        </div>
+                    </div>
+                    <div class="extension-popup">
+                        <div class="popup-header-mini">
+                            <div class="popup-icon-mini">W</div>
+                            <span>Wallabag Saver</span>
+                        </div>
+                        <button class="save-button-mini">このページを保存</button>
+                        <div class="status-mini">✓ Wallabagに保存完了</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('Promotional images ready for capture');
+        console.log('1. promo-440: 440x280 main promotional image');
+        console.log('2. promo-920: 920x680 large promotional image');
+        console.log('3. marquee: 1400x560 marketplace banner');
+        console.log('Use browser dev tools to capture each .promo-container');
+    </script>
+</body>
+</html>

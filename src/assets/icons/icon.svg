@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient definitions -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f8f9fa;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="2" dy="2" result="offset" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge> 
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/> 
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="56" fill="url(#bgGradient)" filter="url(#shadow)"/>
+  
+  <!-- Book icon -->
+  <g transform="translate(32, 28)">
+    <!-- Book cover -->
+    <rect x="8" y="8" width="48" height="64" rx="4" ry="4" 
+          fill="url(#bookGradient)" 
+          stroke="#667eea" 
+          stroke-width="2"/>
+    
+    <!-- Book pages -->
+    <rect x="12" y="12" width="40" height="56" rx="2" ry="2" 
+          fill="#ffffff" 
+          stroke="#e0e0e0" 
+          stroke-width="1"/>
+    
+    <!-- Page lines -->
+    <line x1="16" y1="20" x2="48" y2="20" stroke="#6c757d" stroke-width="1" opacity="0.6"/>
+    <line x1="16" y1="26" x2="44" y2="26" stroke="#6c757d" stroke-width="1" opacity="0.6"/>
+    <line x1="16" y1="32" x2="46" y2="32" stroke="#6c757d" stroke-width="1" opacity="0.6"/>
+    <line x1="16" y1="38" x2="42" y2="38" stroke="#6c757d" stroke-width="1" opacity="0.6"/>
+    
+    <!-- Bookmark -->
+    <polygon points="52,8 60,8 60,28 56,24 52,28" 
+             fill="#dc3545" 
+             stroke="#c82333" 
+             stroke-width="1"/>
+    
+    <!-- Plus icon for "add to read later" -->
+    <circle cx="44" cy="56" r="8" fill="#28a745" stroke="#ffffff" stroke-width="2"/>
+    <line x1="40" y1="56" x2="48" y2="56" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="44" y1="52" x2="44" y2="60" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Wallabag "W" -->
+  <text x="64" y="94" 
+        font-family="Arial, sans-serif" 
+        font-size="16" 
+        font-weight="bold" 
+        text-anchor="middle" 
+        fill="#ffffff">W</text>
+</svg>

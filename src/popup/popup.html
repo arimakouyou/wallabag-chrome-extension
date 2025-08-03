@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallabag Saver</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <!-- ヘッダー -->
+        <header class="header">
+            <div class="header-content">
+                <img src="/icons/icon-48.png" alt="Wallabag" class="header-icon">
+                <h1 class="header-title">Wallabag Saver</h1>
+            </div>
+            <div class="header-status">
+                <span class="status-indicator" id="status-indicator"></span>
+                <span class="status-text" id="status-text">準備中...</span>
+            </div>
+        </header>
+
+        <!-- メインコンテンツ -->
+        <main class="content">
+            <!-- ページ情報表示 -->
+            <div class="page-info" id="page-info">
+                <div class="page-title" id="page-title">ページを読み込み中...</div>
+                <div class="page-url" id="page-url"></div>
+            </div>
+
+            <!-- アクションボタンエリア -->
+            <div class="actions">
+                <!-- メイン保存ボタン -->
+                <button class="save-btn primary" id="save-page-btn" disabled>
+                    <span class="btn-icon">📖</span>
+                    <span class="btn-text">このページを保存</span>
+                    <div class="btn-loading" id="save-loading">
+                        <div class="spinner"></div>
+                    </div>
+                </button>
+
+                <!-- オプションボタン -->
+                <div class="option-buttons">
+                    <button class="option-btn" id="star-btn" title="お気に入りに追加">
+                        <span class="btn-icon">⭐</span>
+                    </button>
+                    <button class="option-btn" id="archive-btn" title="アーカイブに追加">
+                        <span class="btn-icon">📦</span>
+                    </button>
+                    <button class="option-btn" id="tags-btn" title="タグを追加">
+                        <span class="btn-icon">🏷️</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- タグ入力エリア（初期は非表示） -->
+            <div class="tags-input-area" id="tags-input-area" style="display: none;">
+                <label for="tags-input" class="tags-label">タグ（カンマ区切り）:</label>
+                <input type="text" id="tags-input" class="tags-input" placeholder="例: 記事, 技術, JavaScript">
+                <div class="tags-buttons">
+                    <button class="btn-small confirm" id="tags-confirm">追加</button>
+                    <button class="btn-small cancel" id="tags-cancel">キャンセル</button>
+                </div>
+            </div>
+
+            <!-- ステータスメッセージ -->
+            <div class="status-message" id="status-message"></div>
+
+            <!-- エラーメッセージ -->
+            <div class="error-message" id="error-message" style="display: none;">
+                <div class="error-icon">⚠️</div>
+                <div class="error-text" id="error-text"></div>
+                <button class="error-close" id="error-close">✕</button>
+            </div>
+
+            <!-- 成功メッセージ -->
+            <div class="success-message" id="success-message" style="display: none;">
+                <div class="success-icon">✅</div>
+                <div class="success-text" id="success-text"></div>
+                <div class="success-actions">
+                    <a href="#" id="view-entry-link" target="_blank" class="success-link">Wallabagで表示</a>
+                </div>
+            </div>
+
+            <!-- 設定未完了メッセージ -->
+            <div class="config-required" id="config-required" style="display: none;">
+                <div class="config-icon">⚙️</div>
+                <div class="config-text">
+                    <h3>設定が必要です</h3>
+                    <p>Wallabagサーバーへの接続設定を行ってください。</p>
+                </div>
+                <button class="config-btn" id="open-options">設定を開く</button>
+            </div>
+
+            <!-- 最近の保存履歴（オプション） -->
+            <div class="recent-saves" id="recent-saves" style="display: none;">
+                <h3 class="recent-title">最近の保存</h3>
+                <div class="recent-list" id="recent-list">
+                    <!-- 動的に生成される -->
+                </div>
+            </div>
+        </main>
+
+        <!-- フッター -->
+        <footer class="footer">
+            <div class="footer-links">
+                <a href="#" id="options-link" class="footer-link">設定</a>
+                <span class="footer-separator">|</span>
+                <a href="#" id="help-link" class="footer-link">ヘルプ</a>
+                <span class="footer-separator">|</span>
+                <a href="https://wallabag.org" target="_blank" class="footer-link">Wallabag</a>
+            </div>
+            <div class="footer-version">
+                v1.0.0
+            </div>
+        </footer>
+    </div>
+
+    <!-- JavaScriptファイル -->
+    <script src="popup.js"></script>
+</body>
+</html>
