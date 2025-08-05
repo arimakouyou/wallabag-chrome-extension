@@ -37,6 +37,13 @@ const mockChrome = {
     onClicked: {
       addListener: jest.fn(),
     },
+    update: jest.fn(),
+    remove: jest.fn(),
+    removeAll: jest.fn(),
+  },
+  notifications: {
+    create: jest.fn(),
+    clear: jest.fn(),
   },
 };
 

@@ -196,24 +196,24 @@ export enum MessageType {
   // ページ保存関連
   SAVE_PAGE = 'SAVE_PAGE',
   SAVE_PAGE_RESPONSE = 'SAVE_PAGE_RESPONSE',
-  
+
   // 設定関連
   GET_CONFIG = 'GET_CONFIG',
   SET_CONFIG = 'SET_CONFIG',
   CONFIG_RESPONSE = 'CONFIG_RESPONSE',
-  
+
   // 認証関連
   CHECK_AUTH = 'CHECK_AUTH',
   AUTH_RESPONSE = 'AUTH_RESPONSE',
   REFRESH_TOKEN = 'REFRESH_TOKEN',
-  
+
   // ページ情報取得
   GET_PAGE_INFO = 'GET_PAGE_INFO',
   PAGE_INFO_RESPONSE = 'PAGE_INFO_RESPONSE',
-  
+
   // 状態通知
   STATUS_UPDATE = 'STATUS_UPDATE',
-  ERROR_NOTIFICATION = 'ERROR_NOTIFICATION'
+  ERROR_NOTIFICATION = 'ERROR_NOTIFICATION',
 }
 
 /**
@@ -244,7 +244,7 @@ export enum ExtensionStatus {
   /** 設定未完了 */
   NOT_CONFIGURED = 'not_configured',
   /** 認証エラー */
-  AUTH_ERROR = 'auth_error'
+  AUTH_ERROR = 'auth_error',
 }
 
 /**
@@ -261,7 +261,7 @@ export enum ErrorType {
   /** 設定エラー */
   CONFIG_ERROR = 'config_error',
   /** 不明なエラー */
-  UNKNOWN_ERROR = 'unknown_error'
+  UNKNOWN_ERROR = 'unknown_error',
 }
 
 /**
@@ -336,5 +336,5 @@ export function isPageInfo(payload: unknown): payload is PageInfo {
 }
 
 export function isPartialConfig(payload: unknown): payload is Partial<Config> {
-    return typeof payload === 'object' && payload !== null;
+  return typeof payload === 'object' && payload !== null;
 }

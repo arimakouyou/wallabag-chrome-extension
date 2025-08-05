@@ -4,16 +4,16 @@
  * メインロジック、イベントハンドリング、API通信の中心
  */
 
-import { 
-  ExtensionMessage, 
-  MessageType, 
-  SaveResult, 
-  PageInfo, 
+import {
+  ExtensionMessage,
+  MessageType,
+  SaveResult,
+  PageInfo,
   ErrorType,
   ContextMenuItem,
   isPageInfo,
   isPartialConfig,
-  Config
+  Config,
 } from '../lib/types';
 import { ConfigManager } from '../lib/config-manager';
 import { createWallabagClient, savePage } from '../lib/wallabag-api';
@@ -36,10 +36,10 @@ class BackgroundService {
     try {
       // イベントリスナーの設定
       this.setupEventListeners();
-      
+
       // コンテキストメニューの初期化
       await this.setupContextMenus();
-      
+
       // アイコンの初期状態設定
       await this.updateExtensionIcon();
 
@@ -59,17 +59,17 @@ class BackgroundService {
       (message: ExtensionMessage, sender, sendResponse) => {
         this.handleMessage(message, sender)
           .then(sendResponse)
-          .catch(error => {
+          .catch((error) => {
             console.error('メッセージ処理エラー:', error);
             sendResponse({
               type: MessageType.ERROR_NOTIFICATION,
               payload: {
                 error: error.message,
-                type: ErrorType.UNKNOWN_ERROR
-              }
+                type: ErrorType.UNKNOWN_ERROR,
+              },
             });
           });
-        
+
         // 非同期レスポンスを示すためtrueを返す
         return true;
       }
@@ -137,7 +137,7 @@ class BackgroundService {
 
       case MessageType.GET_PAGE_INFO:
         // sender.tabが無効な場合は現在のアクティブタブを取得
-        const tab = sender.tab || await this.getCurrentActiveTab();
+        const tab = sender.tab || (await this.getCurrentActiveTab());
         return await this.handleGetPageInfo(tab);
 
       default:
@@ -161,9 +161,10 @@ class BackgroundService {
           type: MessageType.SAVE_PAGE_RESPONSE,
           payload: {
             success: false,
-            message: '設定が完了していません。オプションページで設定を行ってください。',
-            error: 'not_configured'
-          } as SaveResult
+            message:
+              '設定が完了していません。オプションページで設定を行ってください。',
+            error: 'not_configured',
+          } as SaveResult,
         };
       }
 
@@ -173,17 +174,19 @@ class BackgroundService {
       const result: SaveResult = {
         success: true,
         message: 'ページが正常に保存されました',
-        entryId: entry.id
+        entryId: entry.id,
       };
 
       // 成功通知
-      await this.showNotification('保存完了', 'ページがWallabagに保存されました');
-      
+      await this.showNotification(
+        '保存完了',
+        'ページがWallabagに保存されました'
+      );
+
       return {
         type: MessageType.SAVE_PAGE_RESPONSE,
-        payload: result
+        payload: result,
       };
-
     } catch (error: unknown) {
       console.error('ページ保存エラー:', error);
 
@@ -195,12 +198,15 @@ class BackgroundService {
       const result: SaveResult = {
         success: false,
         message: errorMessage,
-        error: (error instanceof Error && 'type' in error) ? (error as {type: string}).type : ErrorType.UNKNOWN_ERROR
+        error:
+          error instanceof Error && 'type' in error
+            ? (error as { type: string }).type
+            : ErrorType.UNKNOWN_ERROR,
       };
 
       return {
         type: MessageType.SAVE_PAGE_RESPONSE,
-        payload: result
+        payload: result,
       };
     }
   }
@@ -212,7 +218,7 @@ class BackgroundService {
     const config = await ConfigManager.getConfig();
     return {
       type: MessageType.CONFIG_RESPONSE,
-      payload: config
+      payload: config,
     };
   }
 
@@ -220,12 +226,14 @@ class BackgroundService {
    * 設定保存処理
    * @param config 設定データ
    */
-  private async handleSetConfig(config: Partial<Config>): Promise<ExtensionMessage> {
+  private async handleSetConfig(
+    config: Partial<Config>
+  ): Promise<ExtensionMessage> {
     try {
       await ConfigManager.setConfig(config);
       return {
         type: MessageType.CONFIG_RESPONSE,
-        payload: { success: true }
+        payload: { success: true },
       };
     } catch (error: unknown) {
       let errorMessage = '設定の保存に失敗しました';
@@ -234,10 +242,10 @@ class BackgroundService {
       }
       return {
         type: MessageType.CONFIG_RESPONSE,
-        payload: { 
-          success: false, 
-          error: errorMessage
-        }
+        payload: {
+          success: false,
+          error: errorMessage,
+        },
       };
     }
   }
@@ -257,8 +265,8 @@ class BackgroundService {
           isConfigured,
           hasCredentials,
           isTokenValid,
-          isAuthenticated: isConfigured && hasCredentials && isTokenValid
-        }
+          isAuthenticated: isConfigured && hasCredentials && isTokenValid,
+        },
       };
     } catch (error: unknown) {
       let errorMessage = '認証状態の確認に失敗しました';
@@ -272,8 +280,8 @@ class BackgroundService {
           hasCredentials: false,
           isTokenValid: false,
           isAuthenticated: false,
-          error: errorMessage
-        }
+          error: errorMessage,
+        },
       };
     }
   }
@@ -294,12 +302,12 @@ class BackgroundService {
         grant_type: 'refresh_token',
         refresh_token: config.refreshToken,
         client_id: config.clientId,
-        client_secret: config.clientSecret
+        client_secret: config.clientSecret,
       });
 
       return {
         type: MessageType.AUTH_RESPONSE,
-        payload: { success: true }
+        payload: { success: true },
       };
     } catch (error: unknown) {
       let errorMessage = 'トークンの更新に失敗しました';
@@ -308,10 +316,10 @@ class BackgroundService {
       }
       return {
         type: MessageType.AUTH_RESPONSE,
-        payload: { 
-          success: false, 
-          error: errorMessage
-        }
+        payload: {
+          success: false,
+          error: errorMessage,
+        },
       };
     }
   }
@@ -322,7 +330,10 @@ class BackgroundService {
    */
   private async getCurrentActiveTab(): Promise<chrome.tabs.Tab | undefined> {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
       return tab;
     } catch (error) {
       console.error('アクティブタブの取得に失敗:', error);
@@ -334,7 +345,9 @@ class BackgroundService {
    * ページ情報取得処理
    * @param tab タブ情報
    */
-  private async handleGetPageInfo(tab?: chrome.tabs.Tab): Promise<ExtensionMessage> {
+  private async handleGetPageInfo(
+    tab?: chrome.tabs.Tab
+  ): Promise<ExtensionMessage> {
     if (!tab || !tab.id) {
       throw new Error('タブ情報が取得できません');
     }
@@ -342,22 +355,22 @@ class BackgroundService {
     try {
       // Content Scriptからページ情報を取得
       const response = await chrome.tabs.sendMessage(tab.id, {
-        type: MessageType.GET_PAGE_INFO
+        type: MessageType.GET_PAGE_INFO,
       });
 
       return response;
     } catch (error: unknown) {
       console.warn('Content Scriptからの取得に失敗、基本情報を使用:', error);
-      
+
       // Content Scriptが読み込まれていない場合は基本情報のみ返す
       const pageInfo: PageInfo = {
         url: tab.url || '',
-        title: tab.title || 'タイトルなし'
+        title: tab.title || 'タイトルなし',
       };
 
       return {
         type: MessageType.PAGE_INFO_RESPONSE,
-        payload: pageInfo
+        payload: pageInfo,
       };
     }
   }
@@ -376,7 +389,7 @@ class BackgroundService {
       // ページ情報を取得
       const pageInfo: PageInfo = {
         url: tab.url,
-        title: tab.title || 'タイトルなし'
+        title: tab.title || 'タイトルなし',
       };
 
       // ページを保存
@@ -415,12 +428,12 @@ class BackgroundService {
       await chrome.contextMenus.removeAll();
 
       const isConfigured = await ConfigManager.isConfigured();
-      
+
       if (isConfigured) {
         const menuItem: ContextMenuItem = {
           id: 'save-to-wallabag',
           title: 'Wallabagに保存',
-          contexts: ['page', 'link', 'selection']
+          contexts: ['page', 'link', 'selection'],
         };
 
         chrome.contextMenus.create(menuItem);
@@ -465,13 +478,16 @@ class BackgroundService {
    * @param title 通知タイトル
    * @param message 通知メッセージ
    */
-  private async showNotification(title: string, message: string): Promise<void> {
+  private async showNotification(
+    title: string,
+    message: string
+  ): Promise<void> {
     try {
       await chrome.notifications.create({
         type: 'basic',
         iconUrl: '/icons/icon-48.png',
         title,
-        message
+        message,
       });
     } catch (error) {
       console.error('通知の表示に失敗しました:', error);
@@ -491,16 +507,14 @@ chrome.runtime.onStartup.addListener(async () => {
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('拡張機能がインストール/更新されました:', details.reason);
   await backgroundService.initialize();
-  
+
   // 初回インストール時は設定ページを開く
   if (details.reason === 'install') {
     chrome.tabs.create({
-      url: chrome.runtime.getURL('/options/options.html')
+      url: chrome.runtime.getURL('/options/options.html'),
     });
   }
 });
 
-// エクスポート（テスト用）
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { BackgroundService };
-}
+// テスト用にエクスポート
+export { BackgroundService };

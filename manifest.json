@@ -50,7 +50,8 @@
     "storage",
     "activeTab",
     "contextMenus",
-    "notifications"
+    "notifications",
+    "cookies"
   ],
 
   "host_permissions": [

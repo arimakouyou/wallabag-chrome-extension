@@ -1,321 +1,407 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wallabag Saver 設定</title>
-    <link rel="stylesheet" href="options.css">
-</head>
-<body>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
     <div class="options-container">
-        <!-- ヘッダー -->
-        <header class="header">
-            <div class="header-content">
-                <img src="/icons/icon-48.png" alt="Wallabag" class="header-icon">
-                <div class="header-info">
-                    <h1 class="header-title">Wallabag Saver</h1>
-                    <p class="header-subtitle">拡張機能の設定</p>
-                </div>
-            </div>
-        </header>
-
-        <!-- メインコンテンツ -->
-        <main class="content">
-            <!-- ナビゲーション -->
-            <nav class="nav-tabs">
-                <button class="nav-tab active" data-tab="connection">接続設定</button>
-                <button class="nav-tab" data-tab="behavior">動作設定</button>
-                <button class="nav-tab" data-tab="about">情報</button>
-            </nav>
-
-            <!-- 接続設定タブ -->
-            <div class="tab-content active" id="connection-tab">
-                <div class="section">
-                    <h2 class="section-title">Wallabag サーバー設定</h2>
-                    <p class="section-description">
-                        お使いのWallabagサーバーの接続情報を設定してください。
-                        設定方法については<a href="https://wallabag.org/help" target="_blank">ヘルプページ</a>をご確認ください。
-                    </p>
-
-                    <form id="config-form" class="config-form">
-                        <!-- サーバーURL -->
-                        <div class="form-group">
-                            <label for="server-url" class="form-label">
-                                サーバーURL <span class="required">*</span>
-                            </label>
-                            <input 
-                                type="url" 
-                                id="server-url" 
-                                class="form-input" 
-                                placeholder="https://your-wallabag.example.com"
-                                required
-                            >
-                            <p class="form-help">WallabagサーバーのベースURL（例: https://app.wallabag.it）</p>
-                        </div>
-
-                        <!-- クライアントID -->
-                        <div class="form-group">
-                            <label for="client-id" class="form-label">
-                                クライアントID <span class="required">*</span>
-                            </label>
-                            <input 
-                                type="text" 
-                                id="client-id" 
-                                class="form-input" 
-                                placeholder="1_abc123def456"
-                                required
-                            >
-                            <p class="form-help">Wallabagの開発者設定で作成したアプリのクライアントID</p>
-                        </div>
-
-                        <!-- クライアントシークレット -->
-                        <div class="form-group">
-                            <label for="client-secret" class="form-label">
-                                クライアントシークレット <span class="required">*</span>
-                            </label>
-                            <input 
-                                type="password" 
-                                id="client-secret" 
-                                class="form-input" 
-                                placeholder="abc123def456ghi789"
-                                required
-                            >
-                            <button type="button" class="toggle-password" id="toggle-secret">👁️</button>
-                            <p class="form-help">アプリ作成時に生成されたクライアントシークレット</p>
-                        </div>
-
-                        <!-- ユーザー名 -->
-                        <div class="form-group">
-                            <label for="username" class="form-label">
-                                ユーザー名 <span class="required">*</span>
-                            </label>
-                            <input 
-                                type="text" 
-                                id="username" 
-                                class="form-input" 
-                                placeholder="your-username"
-                                required
-                                autocomplete="username"
-                            >
-                            <p class="form-help">Wallabagのログインユーザー名</p>
-                        </div>
-
-                        <!-- パスワード -->
-                        <div class="form-group">
-                            <label for="password" class="form-label">
-                                パスワード <span class="required">*</span>
-                            </label>
-                            <input 
-                                type="password" 
-                                id="password" 
-                                class="form-input" 
-                                placeholder="your-password"
-                                required
-                                autocomplete="current-password"
-                            >
-                            <button type="button" class="toggle-password" id="toggle-password">👁️</button>
-                            <p class="form-help">Wallabagのログインパスワード</p>
-                        </div>
-
-                        <!-- ボタン -->
-                        <div class="form-actions">
-                            <button type="button" id="test-connection" class="btn btn-secondary">
-                                <span class="btn-icon">🔗</span>
-                                接続テスト
-                            </button>
-                            <button type="submit" id="save-config" class="btn btn-primary">
-                                <span class="btn-icon">💾</span>
-                                設定を保存
-                            </button>
-                        </div>
-                    </form>
-
-                    <!-- 接続状態 -->
-                    <div class="connection-status" id="connection-status">
-                        <div class="status-indicator" id="status-indicator"></div>
-                        <span class="status-text" id="status-text">未設定</span>
-                    </div>
-                </div>
-
-                <!-- セットアップガイド -->
-                <div class="section">
-                    <h3 class="section-title">セットアップガイド</h3>
-                    <div class="setup-guide">
-                        <div class="step">
-                            <div class="step-number">1</div>
-                            <div class="step-content">
-                                <h4>Wallabagにログイン</h4>
-                                <p>お使いのWallabagサーバーにブラウザでアクセスし、ログインしてください。</p>
-                            </div>
-                        </div>
-                        <div class="step">
-                            <div class="step-number">2</div>
-                            <div class="step-content">
-                                <h4>APIクライアントを作成</h4>
-                                <p>「設定」→「開発者」→「新しいクライアントを作成」でAPIクライアントを作成してください。</p>
-                            </div>
-                        </div>
-                        <div class="step">
-                            <div class="step-number">3</div>
-                            <div class="step-content">
-                                <h4>認証情報を入力</h4>
-                                <p>取得したクライアントIDとシークレットを上記フォームに入力してください。</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 動作設定タブ -->
-            <div class="tab-content" id="behavior-tab">
-                <div class="section">
-                    <h2 class="section-title">拡張機能の動作設定</h2>
-
-                    <div class="settings-group">
-                        <!-- 自動タグ付け -->
-                        <div class="setting-item">
-                            <div class="setting-header">
-                                <label for="auto-tags" class="setting-label">自動タグ付け</label>
-                                <input type="checkbox" id="auto-tags" class="setting-toggle">
-                            </div>
-                            <p class="setting-description">
-                                ドメイン名に基づいて自動的にタグを追加します
-                            </p>
-                        </div>
-
-                        <!-- デフォルトタグ -->
-                        <div class="setting-item">
-                            <label for="default-tags" class="setting-label">デフォルトタグ</label>
-                            <input 
-                                type="text" 
-                                id="default-tags" 
-                                class="form-input" 
-                                placeholder="例: chrome-extension, 後で読む"
-                            >
-                            <p class="setting-description">
-                                すべての保存ページに自動的に追加されるタグ（カンマ区切り）
-                            </p>
-                        </div>
-
-                        <!-- 保存ボタン挿入 -->
-                        <div class="setting-item">
-                            <div class="setting-header">
-                                <label for="inject-button" class="setting-label">ページ内保存ボタン</label>
-                                <input type="checkbox" id="inject-button" class="setting-toggle">
-                            </div>
-                            <p class="setting-description">
-                                ウェブページに保存ボタンを表示します
-                            </p>
-                        </div>
-
-                        <!-- 通知設定 -->
-                        <div class="setting-item">
-                            <div class="setting-header">
-                                <label for="show-notifications" class="setting-label">デスクトップ通知</label>
-                                <input type="checkbox" id="show-notifications" class="setting-toggle" checked>
-                            </div>
-                            <p class="setting-description">
-                                保存完了時にデスクトップ通知を表示します
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="button" id="save-behavior" class="btn btn-primary">
-                            <span class="btn-icon">💾</span>
-                            動作設定を保存
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 情報タブ -->
-            <div class="tab-content" id="about-tab">
-                <div class="section">
-                    <h2 class="section-title">拡張機能について</h2>
-                    
-                    <div class="about-info">
-                        <div class="info-item">
-                            <h4>バージョン</h4>
-                            <p>1.0.0</p>
-                        </div>
-                        <div class="info-item">
-                            <h4>開発者</h4>
-                            <p>Wallabag Chrome Extension Team</p>
-                        </div>
-                        <div class="info-item">
-                            <h4>ライセンス</h4>
-                            <p>MIT License</p>
-                        </div>
-                    </div>
-
-                    <div class="links-section">
-                        <h4>リンク</h4>
-                        <div class="links">
-                            <a href="https://wallabag.org" target="_blank" class="link-item">
-                                🌐 Wallabag公式サイト
-                            </a>
-                            <a href="https://github.com/wallabag/chrome-extension" target="_blank" class="link-item">
-                                📦 GitHub リポジトリ
-                            </a>
-                            <a href="https://wallabag.org/help" target="_blank" class="link-item">
-                                📚 ヘルプ・ドキュメント
-                            </a>
-                            <a href="#" id="report-issue" class="link-item">
-                                🐛 問題を報告
-                            </a>
-                        </div>
-                    </div>
-
-                    <!-- データ管理 -->
-                    <div class="data-section">
-                        <h4>データ管理</h4>
-                        <div class="data-actions">
-                            <button type="button" id="export-config" class="btn btn-secondary">
-                                <span class="btn-icon">📤</span>
-                                設定をエクスポート
-                            </button>
-                            <button type="button" id="import-config" class="btn btn-secondary">
-                                <span class="btn-icon">📥</span>
-                                設定をインポート
-                            </button>
-                            <button type="button" id="clear-data" class="btn btn-danger">
-                                <span class="btn-icon">🗑️</span>
-                                すべてのデータを削除
-                            </button>
-                        </div>
-                        <input type="file" id="import-file" accept=".json" style="display: none;">
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <!-- メッセージエリア -->
-        <div class="message-area">
-            <!-- 成功メッセージ -->
-            <div class="message success" id="success-message" style="display: none;">
-                <div class="message-icon">✅</div>
-                <div class="message-text" id="success-text"></div>
-                <button class="message-close" id="success-close">✕</button>
-            </div>
-
-            <!-- エラーメッセージ -->
-            <div class="message error" id="error-message" style="display: none;">
-                <div class="message-icon">❌</div>
-                <div class="message-text" id="error-text"></div>
-                <button class="message-close" id="error-close">✕</button>
-            </div>
-
-            <!-- 情報メッセージ -->
-            <div class="message info" id="info-message" style="display: none;">
-                <div class="message-icon">ℹ️</div>
-                <div class="message-text" id="info-text"></div>
-                <button class="message-close" id="info-close">✕</button>
-            </div>
+      <!-- ヘッダー -->
+      <header class="header">
+        <div class="header-content">
+          <img src="/icons/icon-48.png" alt="Wallabag" class="header-icon" />
+          <div class="header-info">
+            <h1 class="header-title">Wallabag Saver</h1>
+            <p class="header-subtitle">拡張機能の設定</p>
+          </div>
         </div>
+      </header>
+
+      <!-- メインコンテンツ -->
+      <main class="content">
+        <!-- ナビゲーション -->
+        <nav class="nav-tabs">
+          <button class="nav-tab active" data-tab="connection">接続設定</button>
+          <button class="nav-tab" data-tab="behavior">動作設定</button>
+          <button class="nav-tab" data-tab="about">情報</button>
+        </nav>
+
+        <!-- 接続設定タブ -->
+        <div class="tab-content active" id="connection-tab">
+          <div class="section">
+            <h2 class="section-title">Wallabag サーバー設定</h2>
+            <p class="section-description">
+              お使いのWallabagサーバーの接続情報を設定してください。
+              設定方法については<a
+                href="https://wallabag.org/help"
+                target="_blank"
+                >ヘルプページ</a
+              >をご確認ください。
+            </p>
+
+            <form id="config-form" class="config-form">
+              <!-- サーバーURL -->
+              <div class="form-group">
+                <label for="server-url" class="form-label">
+                  サーバーURL <span class="required">*</span>
+                </label>
+                <input
+                  type="url"
+                  id="server-url"
+                  class="form-input"
+                  placeholder="https://your-wallabag.example.com"
+                  required
+                />
+                <p class="form-help">
+                  WallabagサーバーのベースURL（例: https://app.wallabag.it）
+                </p>
+              </div>
+
+              <!-- クライアントID -->
+              <div class="form-group">
+                <label for="client-id" class="form-label">
+                  クライアントID <span class="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="client-id"
+                  class="form-input"
+                  placeholder="1_abc123def456"
+                  required
+                />
+                <p class="form-help">
+                  Wallabagの開発者設定で作成したアプリのクライアントID
+                </p>
+              </div>
+
+              <!-- クライアントシークレット -->
+              <div class="form-group">
+                <label for="client-secret" class="form-label">
+                  クライアントシークレット <span class="required">*</span>
+                </label>
+                <input
+                  type="password"
+                  id="client-secret"
+                  class="form-input"
+                  placeholder="abc123def456ghi789"
+                  required
+                />
+                <button
+                  type="button"
+                  class="toggle-password"
+                  id="toggle-secret"
+                >
+                  👁️
+                </button>
+                <p class="form-help">
+                  アプリ作成時に生成されたクライアントシークレット
+                </p>
+              </div>
+
+              <!-- ユーザー名 -->
+              <div class="form-group">
+                <label for="username" class="form-label">
+                  ユーザー名 <span class="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="username"
+                  class="form-input"
+                  placeholder="your-username"
+                  required
+                  autocomplete="username"
+                />
+                <p class="form-help">Wallabagのログインユーザー名</p>
+              </div>
+
+              <!-- パスワード -->
+              <div class="form-group">
+                <label for="password" class="form-label">
+                  パスワード <span class="required">*</span>
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  class="form-input"
+                  placeholder="your-password"
+                  required
+                  autocomplete="current-password"
+                />
+                <button
+                  type="button"
+                  class="toggle-password"
+                  id="toggle-password"
+                >
+                  👁️
+                </button>
+                <p class="form-help">Wallabagのログインパスワード</p>
+              </div>
+
+              <!-- Vouch Proxy モード -->
+              <div class="form-group">
+                <label for="vouch-proxy-mode">
+                  <input type="checkbox" id="vouch-proxy-mode" /> Use Vouch
+                  Proxy (SSO)
+                </label>
+              </div>
+
+              <!-- ボタン -->
+              <div class="form-actions">
+                <button
+                  type="button"
+                  id="test-connection"
+                  class="btn btn-secondary"
+                >
+                  <span class="btn-icon">🔗</span>
+                  接続テスト
+                </button>
+                <button type="submit" id="save-config" class="btn btn-primary">
+                  <span class="btn-icon">💾</span>
+                  設定を保存
+                </button>
+              </div>
+            </form>
+
+            <!-- 接続状態 -->
+            <div class="connection-status" id="connection-status">
+              <div class="status-indicator" id="status-indicator"></div>
+              <span class="status-text" id="status-text">未設定</span>
+            </div>
+          </div>
+
+          <!-- セットアップガイド -->
+          <div class="section">
+            <h3 class="section-title">セットアップガイド</h3>
+            <div class="setup-guide">
+              <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                  <h4>Wallabagにログイン</h4>
+                  <p>
+                    お使いのWallabagサーバーにブラウザでアクセスし、ログインしてください。
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                  <h4>APIクライアントを作成</h4>
+                  <p>
+                    「設定」→「開発者」→「新しいクライアントを作成」でAPIクライアントを作成してください。
+                  </p>
+                </div>
+              </div>
+              <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                  <h4>認証情報を入力</h4>
+                  <p>
+                    取得したクライアントIDとシークレットを上記フォームに入力してください。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 動作設定タブ -->
+        <div class="tab-content" id="behavior-tab">
+          <div class="section">
+            <h2 class="section-title">拡張機能の動作設定</h2>
+
+            <div class="settings-group">
+              <!-- 自動タグ付け -->
+              <div class="setting-item">
+                <div class="setting-header">
+                  <label for="auto-tags" class="setting-label"
+                    >自動タグ付け</label
+                  >
+                  <input
+                    type="checkbox"
+                    id="auto-tags"
+                    class="setting-toggle"
+                  />
+                </div>
+                <p class="setting-description">
+                  ドメイン名に基づいて自動的にタグを追加します
+                </p>
+              </div>
+
+              <!-- デフォルトタグ -->
+              <div class="setting-item">
+                <label for="default-tags" class="setting-label"
+                  >デフォルトタグ</label
+                >
+                <input
+                  type="text"
+                  id="default-tags"
+                  class="form-input"
+                  placeholder="例: chrome-extension, 後で読む"
+                />
+                <p class="setting-description">
+                  すべての保存ページに自動的に追加されるタグ（カンマ区切り）
+                </p>
+              </div>
+
+              <!-- 保存ボタン挿入 -->
+              <div class="setting-item">
+                <div class="setting-header">
+                  <label for="inject-button" class="setting-label"
+                    >ページ内保存ボタン</label
+                  >
+                  <input
+                    type="checkbox"
+                    id="inject-button"
+                    class="setting-toggle"
+                  />
+                </div>
+                <p class="setting-description">
+                  ウェブページに保存ボタンを表示します
+                </p>
+              </div>
+
+              <!-- 通知設定 -->
+              <div class="setting-item">
+                <div class="setting-header">
+                  <label for="show-notifications" class="setting-label"
+                    >デスクトップ通知</label
+                  >
+                  <input
+                    type="checkbox"
+                    id="show-notifications"
+                    class="setting-toggle"
+                    checked
+                  />
+                </div>
+                <p class="setting-description">
+                  保存完了時にデスクトップ通知を表示します
+                </p>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" id="save-behavior" class="btn btn-primary">
+                <span class="btn-icon">💾</span>
+                動作設定を保存
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 情報タブ -->
+        <div class="tab-content" id="about-tab">
+          <div class="section">
+            <h2 class="section-title">拡張機能について</h2>
+
+            <div class="about-info">
+              <div class="info-item">
+                <h4>バージョン</h4>
+                <p>1.0.0</p>
+              </div>
+              <div class="info-item">
+                <h4>開発者</h4>
+                <p>Wallabag Chrome Extension Team</p>
+              </div>
+              <div class="info-item">
+                <h4>ライセンス</h4>
+                <p>MIT License</p>
+              </div>
+            </div>
+
+            <div class="links-section">
+              <h4>リンク</h4>
+              <div class="links">
+                <a
+                  href="https://wallabag.org"
+                  target="_blank"
+                  class="link-item"
+                >
+                  🌐 Wallabag公式サイト
+                </a>
+                <a
+                  href="https://github.com/wallabag/chrome-extension"
+                  target="_blank"
+                  class="link-item"
+                >
+                  📦 GitHub リポジトリ
+                </a>
+                <a
+                  href="https://wallabag.org/help"
+                  target="_blank"
+                  class="link-item"
+                >
+                  📚 ヘルプ・ドキュメント
+                </a>
+                <a href="#" id="report-issue" class="link-item">
+                  🐛 問題を報告
+                </a>
+              </div>
+            </div>
+
+            <!-- データ管理 -->
+            <div class="data-section">
+              <h4>データ管理</h4>
+              <div class="data-actions">
+                <button
+                  type="button"
+                  id="export-config"
+                  class="btn btn-secondary"
+                >
+                  <span class="btn-icon">📤</span>
+                  設定をエクスポート
+                </button>
+                <button
+                  type="button"
+                  id="import-config"
+                  class="btn btn-secondary"
+                >
+                  <span class="btn-icon">📥</span>
+                  設定をインポート
+                </button>
+                <button type="button" id="clear-data" class="btn btn-danger">
+                  <span class="btn-icon">🗑️</span>
+                  すべてのデータを削除
+                </button>
+              </div>
+              <input
+                type="file"
+                id="import-file"
+                accept=".json"
+                style="display: none"
+              />
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- メッセージエリア -->
+      <div class="message-area">
+        <!-- 成功メッセージ -->
+        <div class="message success" id="success-message" style="display: none">
+          <div class="message-icon">✅</div>
+          <div class="message-text" id="success-text"></div>
+          <button class="message-close" id="success-close">✕</button>
+        </div>
+
+        <!-- エラーメッセージ -->
+        <div class="message error" id="error-message" style="display: none">
+          <div class="message-icon">❌</div>
+          <div class="message-text" id="error-text"></div>
+          <button class="message-close" id="error-close">✕</button>
+        </div>
+
+        <!-- 情報メッセージ -->
+        <div class="message info" id="info-message" style="display: none">
+          <div class="message-icon">ℹ️</div>
+          <div class="message-text" id="info-text"></div>
+          <button class="message-close" id="info-close">✕</button>
+        </div>
+      </div>
     </div>
 
     <!-- JavaScript -->
     <script src="options.js"></script>
-</body>
+  </body>
 </html>

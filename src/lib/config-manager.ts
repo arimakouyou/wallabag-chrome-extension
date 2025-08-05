@@ -11,7 +11,12 @@ import { Config, ConfigValidationResult } from './types';
  */
 export class ConfigManager {
   private static readonly STORAGE_KEY = 'wallabag_config';
-  private static readonly ENCRYPTED_FIELDS = ['password', 'clientSecret', 'accessToken', 'refreshToken'];
+  private static readonly ENCRYPTED_FIELDS = [
+    'password',
+    'clientSecret',
+    'accessToken',
+    'refreshToken',
+  ];
 
   /**
    * 設定を取得
@@ -21,7 +26,7 @@ export class ConfigManager {
     try {
       const result = await chrome.storage.local.get(this.STORAGE_KEY);
       const config = result[this.STORAGE_KEY] || {};
-      
+
       // 暗号化されたフィールドを復号化
       return this.decryptSensitiveFields(config);
     } catch (error) {
@@ -38,11 +43,11 @@ export class ConfigManager {
     try {
       // 機密情報を暗号化
       const encryptedConfig = this.encryptSensitiveFields(config);
-      
+
       await chrome.storage.local.set({
-        [this.STORAGE_KEY]: encryptedConfig
+        [this.STORAGE_KEY]: encryptedConfig,
       });
-      
+
       console.log('設定が正常に保存されました');
     } catch (error) {
       console.error('設定の保存に失敗しました:', error);
@@ -88,7 +93,7 @@ export class ConfigManager {
       'clientId',
       'clientSecret',
       'username',
-      'password'
+      'password',
     ];
 
     for (const field of requiredFields) {
@@ -129,7 +134,7 @@ export class ConfigManager {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -149,8 +154,13 @@ export class ConfigManager {
    */
   static async hasAuthCredentials(): Promise<boolean> {
     const config = await this.getConfig();
-    return !!(config.serverUrl && config.clientId && config.clientSecret && 
-              config.username && config.password);
+    return !!(
+      config.serverUrl &&
+      config.clientId &&
+      config.clientSecret &&
+      config.username &&
+      config.password
+    );
   }
 
   /**
@@ -159,7 +169,7 @@ export class ConfigManager {
    */
   static async isTokenValid(): Promise<boolean> {
     const config = await this.getConfig();
-    
+
     if (!config.accessToken || !config.tokenExpiresAt) {
       return false;
     }
@@ -169,7 +179,7 @@ export class ConfigManager {
     const expiresAt = config.tokenExpiresAt * 1000; // ミリ秒に変換
     const marginMs = 5 * 60 * 1000; // 5分のマージン
 
-    return (expiresAt - now) > marginMs;
+    return expiresAt - now > marginMs;
   }
 
   /**
@@ -184,10 +194,10 @@ export class ConfigManager {
     refreshToken?: string
   ): Promise<void> {
     const tokenExpiresAt = Math.floor(Date.now() / 1000) + expiresIn;
-    
+
     const updates: Partial<Config> = {
       accessToken,
-      tokenExpiresAt
+      tokenExpiresAt,
     };
 
     if (refreshToken) {
@@ -214,11 +224,9 @@ export class ConfigManager {
    */
   static async exportConfig(): Promise<Partial<Config>> {
     const config = await this.getConfig();
-    
+
     // 機密情報を除外
-    const {
-      ...safeConfig
-    } = config;
+    const { ...safeConfig } = config;
 
     return safeConfig;
   }
@@ -228,7 +236,9 @@ export class ConfigManager {
    * @param config 設定オブジェクト
    * @returns 暗号化された設定
    */
-  private static encryptSensitiveFields(config: Partial<Config>): Partial<Config> {
+  private static encryptSensitiveFields(
+    config: Partial<Config>
+  ): Partial<Config> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const newConfig: any = {};
     for (const key in config) {
@@ -249,7 +259,9 @@ export class ConfigManager {
    * @param config 暗号化された設定オブジェクト
    * @returns 復号化された設定
    */
-  private static decryptSensitiveFields(config: Partial<Config>): Partial<Config> {
+  private static decryptSensitiveFields(
+    config: Partial<Config>
+  ): Partial<Config> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const newConfig: any = {};
     for (const key in config) {
@@ -298,7 +310,7 @@ export class ConfigManager {
       password: 'パスワード',
       accessToken: 'アクセストークン',
       refreshToken: 'リフレッシュトークン',
-      tokenExpiresAt: 'トークン有効期限'
+      tokenExpiresAt: 'トークン有効期限',
     };
 
     return displayNames[field] || field;
@@ -331,10 +343,15 @@ export class ConfigManager {
     const safeConfig = { ...config };
 
     // 機密情報をマスク
-    if (safeConfig.password) safeConfig.password = '*'.repeat(safeConfig.password.length);
-    if (safeConfig.clientSecret) safeConfig.clientSecret = '*'.repeat(8) + safeConfig.clientSecret.slice(-4);
-    if (safeConfig.accessToken) safeConfig.accessToken = safeConfig.accessToken.slice(0, 8) + '...';
-    if (safeConfig.refreshToken) safeConfig.refreshToken = safeConfig.refreshToken.slice(0, 8) + '...';
+    if (safeConfig.password)
+      safeConfig.password = '*'.repeat(safeConfig.password.length);
+    if (safeConfig.clientSecret)
+      safeConfig.clientSecret =
+        '*'.repeat(8) + safeConfig.clientSecret.slice(-4);
+    if (safeConfig.accessToken)
+      safeConfig.accessToken = safeConfig.accessToken.slice(0, 8) + '...';
+    if (safeConfig.refreshToken)
+      safeConfig.refreshToken = safeConfig.refreshToken.slice(0, 8) + '...';
 
     console.log('現在の設定:', safeConfig);
   }

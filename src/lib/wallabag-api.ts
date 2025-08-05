@@ -13,7 +13,7 @@ import {
   ApiErrorResponse,
   WallabagApiOptions,
   ErrorType,
-  HttpError
+  HttpError,
 } from './types';
 import { ConfigManager } from './config-manager';
 
@@ -28,13 +28,13 @@ export class WallabagApiClient {
   constructor(baseUrl: string, options: Partial<WallabagApiOptions> = {}) {
     // URLの正規化（末尾のスラッシュを除去）
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    
+
     this.options = {
       timeout: 30000, // 30秒
       retries: 3,
       userAgent: 'Wallabag Chrome Extension 1.0',
       ...options,
-      baseUrl: this.baseUrl
+      baseUrl: this.baseUrl,
     };
   }
 
@@ -45,22 +45,22 @@ export class WallabagApiClient {
    */
   async authenticate(credentials: AuthCredentials): Promise<AuthResponse> {
     const url = `${this.baseUrl}/oauth/v2/token`;
-    
+
     const body = new URLSearchParams({
       grant_type: credentials.grant_type,
       client_id: credentials.client_id,
       client_secret: credentials.client_secret,
       username: credentials.username,
-      password: credentials.password
+      password: credentials.password,
     });
 
     try {
       const response = await this.makeRequest<AuthResponse>(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: body.toString()
+        body: body.toString(),
       });
 
       // トークンを設定に保存
@@ -83,23 +83,25 @@ export class WallabagApiClient {
    * @param refreshTokenRequest リフレッシュトークンリクエスト
    * @returns 新しい認証レスポンス
    */
-  async refreshToken(refreshTokenRequest: RefreshTokenRequest): Promise<AuthResponse> {
+  async refreshToken(
+    refreshTokenRequest: RefreshTokenRequest
+  ): Promise<AuthResponse> {
     const url = `${this.baseUrl}/oauth/v2/token`;
-    
+
     const body = new URLSearchParams({
       grant_type: refreshTokenRequest.grant_type,
       refresh_token: refreshTokenRequest.refresh_token,
       client_id: refreshTokenRequest.client_id,
-      client_secret: refreshTokenRequest.client_secret
+      client_secret: refreshTokenRequest.client_secret,
     });
 
     try {
       const response = await this.makeRequest<AuthResponse>(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: body.toString()
+        body: body.toString(),
       });
 
       // 新しいトークンを保存
@@ -115,7 +117,11 @@ export class WallabagApiClient {
       console.error('トークンの更新に失敗しました:', error);
       // トークンが無効な場合はクリア
       await ConfigManager.clearTokens();
-      throw this.createError(ErrorType.AUTH_ERROR, 'トークンの更新に失敗しました', error);
+      throw this.createError(
+        ErrorType.AUTH_ERROR,
+        'トークンの更新に失敗しました',
+        error
+      );
     }
   }
 
@@ -126,24 +132,28 @@ export class WallabagApiClient {
    */
   async createEntry(entry: CreateEntryRequest): Promise<EntryResponse> {
     const url = `${this.baseUrl}/api/entries.json`;
-    
+
     try {
       const accessToken = await this.getValidAccessToken();
-      
+
       const response = await this.makeRequest<EntryResponse>(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(entry)
+        body: JSON.stringify(entry),
       });
 
       console.log('エントリが正常に作成されました:', response.id);
       return response;
     } catch (error) {
       console.error('エントリ作成に失敗しました:', error);
-      throw this.createError(ErrorType.API_ERROR, 'エントリの作成に失敗しました', error);
+      throw this.createError(
+        ErrorType.API_ERROR,
+        'エントリの作成に失敗しました',
+        error
+      );
     }
   }
 
@@ -152,39 +162,49 @@ export class WallabagApiClient {
    * @param params クエリパラメータ
    * @returns エントリ一覧
    */
-  async getEntries(params: {
-    archive?: boolean;
-    starred?: boolean;
-    page?: number;
-    perPage?: number;
-    tags?: string;
-  } = {}): Promise<EntriesResponse> {
+  async getEntries(
+    params: {
+      archive?: boolean;
+      starred?: boolean;
+      page?: number;
+      perPage?: number;
+      tags?: string;
+    } = {}
+  ): Promise<EntriesResponse> {
     const url = `${this.baseUrl}/api/entries.json`;
     const queryParams = new URLSearchParams();
 
     // パラメータの設定
-    if (params.archive !== undefined) queryParams.set('archive', params.archive.toString());
-    if (params.starred !== undefined) queryParams.set('starred', params.starred.toString());
-    if (params.page !== undefined) queryParams.set('page', params.page.toString());
-    if (params.perPage !== undefined) queryParams.set('perPage', params.perPage.toString());
+    if (params.archive !== undefined)
+      queryParams.set('archive', params.archive.toString());
+    if (params.starred !== undefined)
+      queryParams.set('starred', params.starred.toString());
+    if (params.page !== undefined)
+      queryParams.set('page', params.page.toString());
+    if (params.perPage !== undefined)
+      queryParams.set('perPage', params.perPage.toString());
     if (params.tags) queryParams.set('tags', params.tags);
 
     const fullUrl = queryParams.toString() ? `${url}?${queryParams}` : url;
 
     try {
       const accessToken = await this.getValidAccessToken();
-      
+
       const response = await this.makeRequest<EntriesResponse>(fullUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       return response;
     } catch (error) {
       console.error('エントリ一覧の取得に失敗しました:', error);
-      throw this.createError(ErrorType.API_ERROR, 'エントリ一覧の取得に失敗しました', error);
+      throw this.createError(
+        ErrorType.API_ERROR,
+        'エントリ一覧の取得に失敗しました',
+        error
+      );
     }
   }
 
@@ -198,18 +218,22 @@ export class WallabagApiClient {
 
     try {
       const accessToken = await this.getValidAccessToken();
-      
+
       const response = await this.makeRequest<EntryResponse>(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       return response;
     } catch (error) {
       console.error('エントリの取得に失敗しました:', error);
-      throw this.createError(ErrorType.API_ERROR, 'エントリの取得に失敗しました', error);
+      throw this.createError(
+        ErrorType.API_ERROR,
+        'エントリの取得に失敗しました',
+        error
+      );
     }
   }
 
@@ -220,10 +244,15 @@ export class WallabagApiClient {
   async testConnection(): Promise<boolean> {
     try {
       const config = await ConfigManager.getConfig();
-      
+
       // 認証情報の確認
-      if (!config.serverUrl || !config.clientId || !config.clientSecret || 
-          !config.username || !config.password) {
+      if (
+        !config.serverUrl ||
+        !config.clientId ||
+        !config.clientSecret ||
+        !config.username ||
+        !config.password
+      ) {
         throw new Error('認証情報が不完全です');
       }
 
@@ -233,7 +262,7 @@ export class WallabagApiClient {
         client_id: config.clientId,
         client_secret: config.clientSecret,
         username: config.username,
-        password: config.password
+        password: config.password,
       });
 
       return true;
@@ -252,7 +281,7 @@ export class WallabagApiClient {
     const config = await ConfigManager.getConfig();
 
     // トークンの有効性をチェック
-    if (await ConfigManager.isTokenValid() && config.accessToken) {
+    if ((await ConfigManager.isTokenValid()) && config.accessToken) {
       return config.accessToken;
     }
 
@@ -263,25 +292,33 @@ export class WallabagApiClient {
           grant_type: 'refresh_token',
           refresh_token: config.refreshToken,
           client_id: config.clientId,
-          client_secret: config.clientSecret
+          client_secret: config.clientSecret,
         });
-        
+
         return refreshResponse.access_token;
       } catch (error) {
-        console.warn('トークンリフレッシュに失敗しました。再認証が必要です。', error);
+        console.warn(
+          'トークンリフレッシュに失敗しました。再認証が必要です。',
+          error
+        );
       }
     }
 
     // リフレッシュも失敗した場合は再認証
-    if (config.clientId && config.clientSecret && config.username && config.password) {
+    if (
+      config.clientId &&
+      config.clientSecret &&
+      config.username &&
+      config.password
+    ) {
       const authResponse = await this.authenticate({
         grant_type: 'password',
         client_id: config.clientId,
         client_secret: config.clientSecret,
         username: config.username,
-        password: config.password
+        password: config.password,
       });
-      
+
       return authResponse.access_token;
     }
 
@@ -308,10 +345,11 @@ export class WallabagApiClient {
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
+        credentials: 'include',
         headers: {
           'User-Agent': this.options.userAgent || 'Wallabag Extension',
-          ...options.headers
-        }
+          ...options.headers,
+        },
       });
 
       clearTimeout(timeout);
@@ -326,13 +364,15 @@ export class WallabagApiClient {
       } else {
         throw new Error('期待されたJSON形式ではありません');
       }
-
     } catch (error) {
       clearTimeout(timeout);
 
       // リトライ可能なエラーかどうか判定
       if (this.shouldRetry(error, retryCount)) {
-        console.warn(`リクエストをリトライします (${retryCount + 1}/${this.options.retries}):`, error);
+        console.warn(
+          `リクエストをリトライします (${retryCount + 1}/${this.options.retries}):`,
+          error
+        );
         await this.delay(Math.pow(2, retryCount) * 1000); // 指数バックオフ
         return this.makeRequest<T>(url, options, retryCount + 1);
       }
@@ -384,9 +424,11 @@ export class WallabagApiClient {
     const httpError = error as HttpError;
 
     // ネットワークエラー、タイムアウト、5xxエラーはリトライ
-    if (httpError.name === 'AbortError' || 
-        httpError.name === 'TypeError' || 
-        (httpError.status && httpError.status >= 500)) {
+    if (
+      httpError.name === 'AbortError' ||
+      httpError.name === 'TypeError' ||
+      (httpError.status && httpError.status >= 500)
+    ) {
       return true;
     }
 
@@ -404,7 +446,7 @@ export class WallabagApiClient {
    * @private
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -415,7 +457,11 @@ export class WallabagApiClient {
    * @returns カスタムエラー
    * @private
    */
-  private createError(type: ErrorType, message: string, originalError?: unknown): HttpError {
+  private createError(
+    type: ErrorType,
+    message: string,
+    originalError?: unknown
+  ): HttpError {
     const error: HttpError = new Error(message);
     error.type = type;
     error.originalError = originalError;
@@ -429,14 +475,14 @@ export class WallabagApiClient {
  */
 export async function createWallabagClient(): Promise<WallabagApiClient> {
   const config = await ConfigManager.getConfig();
-  
+
   if (!config.serverUrl) {
     throw new Error('Wallabagサーバーが設定されていません');
   }
 
   return new WallabagApiClient(config.serverUrl, {
     timeout: 30000,
-    retries: 3
+    retries: 3,
   });
 }
 
@@ -453,7 +499,7 @@ export async function savePage(
   tags?: string
 ): Promise<EntryResponse> {
   const client = await createWallabagClient();
-  
+
   const entry: CreateEntryRequest = { url };
   if (title) entry.title = title;
   if (tags) entry.tags = tags;

@@ -3,14 +3,14 @@
  * ポップアップUIの操作、API連携、状態管理
  */
 
-import { 
-  ExtensionMessage, 
-  MessageType, 
-  PageInfo, 
-  SaveResult, 
+import {
+  ExtensionMessage,
+  MessageType,
+  PageInfo,
+  SaveResult,
   ExtensionStatus,
   Config,
-  isPageInfo
+  isPageInfo,
 } from '../lib/types';
 
 /**
@@ -24,7 +24,7 @@ class PopupController {
   private saveOptions = {
     starred: false,
     archive: false,
-    tags: ''
+    tags: '',
   };
 
   // DOM要素
@@ -48,11 +48,13 @@ class PopupController {
     errorClose: document.getElementById('error-close') as HTMLButtonElement,
     successMessage: document.getElementById('success-message') as HTMLElement,
     successText: document.getElementById('success-text') as HTMLElement,
-    viewEntryLink: document.getElementById('view-entry-link') as HTMLAnchorElement,
+    viewEntryLink: document.getElementById(
+      'view-entry-link'
+    ) as HTMLAnchorElement,
     configRequired: document.getElementById('config-required') as HTMLElement,
     openOptions: document.getElementById('open-options') as HTMLButtonElement,
     optionsLink: document.getElementById('options-link') as HTMLAnchorElement,
-    helpLink: document.getElementById('help-link') as HTMLAnchorElement
+    helpLink: document.getElementById('help-link') as HTMLAnchorElement,
   };
 
   /**
@@ -62,10 +64,10 @@ class PopupController {
     try {
       // イベントリスナーの設定
       this.setupEventListeners();
-      
+
       // 初期状態の確認
       await this.checkExtensionStatus();
-      
+
       // ページ情報の取得
       await this.loadPageInfo();
     } catch (error) {
@@ -132,7 +134,7 @@ class PopupController {
     this.elements.helpLink.addEventListener('click', (e) => {
       e.preventDefault();
       chrome.tabs.create({
-        url: 'https://wallabag.org/help'
+        url: 'https://wallabag.org/help',
       });
     });
 
@@ -152,21 +154,25 @@ class PopupController {
   private async checkExtensionStatus(): Promise<void> {
     try {
       const response = await this.sendMessage({
-        type: MessageType.CHECK_AUTH
+        type: MessageType.CHECK_AUTH,
       });
 
-      const authStatus = response.payload as { isConfigured: boolean, isAuthenticated: boolean };
+      const authStatus = response.payload as {
+        isConfigured: boolean;
+        isAuthenticated: boolean;
+      };
       this.isConfigured = authStatus.isConfigured;
       this.isAuthenticated = authStatus.isAuthenticated;
 
       // UI状態の更新
       this.updateStatusIndicator();
       this.updateUI();
-
     } catch (error) {
       console.error('状態確認エラー:', error);
       this.updateStatusIndicator(ExtensionStatus.ERROR);
-      this.showError(`拡張機能の状態を確認できませんでした: ${error instanceof Error ? error.message : error}`);
+      this.showError(
+        `拡張機能の状態を確認できませんでした: ${error instanceof Error ? error.message : error}`
+      );
     }
   }
 
@@ -178,7 +184,7 @@ class PopupController {
       this.elements.statusMessage.textContent = 'ページ情報を取得中...';
 
       const response = await this.sendMessage({
-        type: MessageType.GET_PAGE_INFO
+        type: MessageType.GET_PAGE_INFO,
       });
 
       if (isPageInfo(response.payload)) {
@@ -189,7 +195,6 @@ class PopupController {
         this.elements.pageTitle.textContent = 'ページ情報の形式が無効です';
         this.elements.pageUrl.textContent = '';
       }
-
     } catch (error) {
       console.error('ページ情報取得エラー:', error);
       this.elements.pageTitle.textContent = `ページ情報を取得できませんでした: ${error instanceof Error ? error.message : error}`;
@@ -226,12 +231,14 @@ class PopupController {
       } = { ...this.currentPageInfo };
 
       if (this.saveOptions.tags) saveRequest.tags = this.saveOptions.tags;
-      if (this.saveOptions.starred) saveRequest.starred = this.saveOptions.starred;
-      if (this.saveOptions.archive) saveRequest.archive = this.saveOptions.archive;
+      if (this.saveOptions.starred)
+        saveRequest.starred = this.saveOptions.starred;
+      if (this.saveOptions.archive)
+        saveRequest.archive = this.saveOptions.archive;
 
       const response = await this.sendMessage({
         type: MessageType.SAVE_PAGE,
-        payload: saveRequest
+        payload: saveRequest,
       });
 
       const result = response.payload as SaveResult;
@@ -239,18 +246,18 @@ class PopupController {
       if (result.success) {
         this.setSaveButtonState('success');
         this.showSuccess('ページが正常に保存されました', result.entryId);
-        
+
         // オプションをリセット
         this.resetSaveOptions();
       } else {
         this.setSaveButtonState('error');
         this.showError(result.message || '保存に失敗しました');
       }
-
     } catch (error: unknown) {
       console.error('保存エラー:', error);
       this.setSaveButtonState('error');
-      const errorMessage = error instanceof Error ? error.message : 'ページの保存に失敗しました';
+      const errorMessage =
+        error instanceof Error ? error.message : 'ページの保存に失敗しました';
       this.showError(errorMessage);
     }
 
@@ -265,9 +272,10 @@ class PopupController {
    */
   private toggleOption(option: 'starred' | 'archive'): void {
     this.saveOptions[option] = !this.saveOptions[option];
-    
-    const buttonElement = option === 'starred' ? this.elements.starBtn : this.elements.archiveBtn;
-    
+
+    const buttonElement =
+      option === 'starred' ? this.elements.starBtn : this.elements.archiveBtn;
+
     if (this.saveOptions[option]) {
       buttonElement.classList.add('active');
     } else {
@@ -282,7 +290,7 @@ class PopupController {
    */
   private toggleTagsInput(): void {
     const isVisible = this.elements.tagsInputArea.style.display !== 'none';
-    
+
     if (isVisible) {
       this.cancelTags();
     } else {
@@ -299,9 +307,9 @@ class PopupController {
   private confirmTags(): void {
     const tags = this.elements.tagsInput.value.trim();
     this.saveOptions.tags = tags;
-    
+
     this.elements.tagsInputArea.style.display = 'none';
-    
+
     if (tags) {
       this.elements.tagsBtn.classList.add('active');
     } else {
@@ -317,7 +325,7 @@ class PopupController {
   private cancelTags(): void {
     this.elements.tagsInputArea.style.display = 'none';
     this.elements.tagsInput.value = this.saveOptions.tags;
-    
+
     if (!this.saveOptions.tags) {
       this.elements.tagsBtn.classList.remove('active');
     }
@@ -330,7 +338,7 @@ class PopupController {
     this.saveOptions = {
       starred: false,
       archive: false,
-      tags: ''
+      tags: '',
     };
 
     this.elements.starBtn.classList.remove('active');
@@ -428,12 +436,14 @@ class PopupController {
   /**
    * 保存ボタンの状態設定
    */
-  private setSaveButtonState(state: 'default' | 'loading' | 'success' | 'error'): void {
+  private setSaveButtonState(
+    state: 'default' | 'loading' | 'success' | 'error'
+  ): void {
     const btn = this.elements.savePageBtn;
-    
+
     // クラスをリセット
     btn.classList.remove('loading', 'success', 'error');
-    
+
     switch (state) {
       case 'loading':
         btn.classList.add('loading');
@@ -475,11 +485,11 @@ class PopupController {
    */
   private showSuccess(message: string, entryId?: number): void {
     this.elements.successText.textContent = message;
-    
+
     if (entryId) {
       // Wallabagのエントリリンクを設定（設定から基本URLを取得）
       this.sendMessage({ type: MessageType.GET_CONFIG })
-        .then(response => {
+        .then((response) => {
           const config = response.payload as Config;
           if (config.serverUrl) {
             this.elements.viewEntryLink.href = `${config.serverUrl}/view/${entryId}`;
@@ -492,7 +502,7 @@ class PopupController {
     } else {
       this.elements.viewEntryLink.style.display = 'none';
     }
-    
+
     this.elements.successMessage.style.display = 'block';
     this.elements.successMessage.classList.add('fade-in');
     this.updateStatusIndicator(ExtensionStatus.SUCCESS);
@@ -527,7 +537,7 @@ class PopupController {
    */
   private openOptionsPage(): void {
     chrome.tabs.create({
-      url: chrome.runtime.getURL('options.html')
+      url: chrome.runtime.getURL('options.html'),
     });
     window.close();
   }
@@ -535,7 +545,9 @@ class PopupController {
   /**
    * Background Scriptにメッセージを送信
    */
-  private async sendMessage(message: ExtensionMessage): Promise<ExtensionMessage> {
+  private async sendMessage(
+    message: ExtensionMessage
+  ): Promise<ExtensionMessage> {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(message, (response) => {
         if (chrome.runtime.lastError) {

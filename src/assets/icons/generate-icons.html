@@ -1,120 +1,122 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wallabag Extension - Icon Generator</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f8f9fa;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .icon-preview {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        .icon-item {
-            text-align: center;
-            padding: 15px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            background: #f8f9fa;
-        }
-        .icon-item h3 {
-            margin: 10px 0 5px 0;
-            color: #495057;
-        }
-        .icon-item canvas {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-        }
-        .download-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.875rem;
-            margin-top: 10px;
-        }
-        .download-btn:hover {
-            opacity: 0.9;
-        }
-        .generate-all {
-            text-align: center;
-            margin: 30px 0;
-        }
-        .generate-all button {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-        }
-        .instructions {
-            background: #e7f3ff;
-            border-left: 4px solid #667eea;
-            padding: 20px;
-            margin-top: 30px;
-        }
-        .instructions h3 {
-            color: #2c3e50;
-            margin-top: 0;
-        }
-        .instructions ol {
-            color: #495057;
-            line-height: 1.6;
-        }
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #f8f9fa;
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .icon-preview {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .icon-item {
+        text-align: center;
+        padding: 15px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        background: #f8f9fa;
+      }
+      .icon-item h3 {
+        margin: 10px 0 5px 0;
+        color: #495057;
+      }
+      .icon-item canvas {
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+      }
+      .download-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        margin-top: 10px;
+      }
+      .download-btn:hover {
+        opacity: 0.9;
+      }
+      .generate-all {
+        text-align: center;
+        margin: 30px 0;
+      }
+      .generate-all button {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .instructions {
+        background: #e7f3ff;
+        border-left: 4px solid #667eea;
+        padding: 20px;
+        margin-top: 30px;
+      }
+      .instructions h3 {
+        color: #2c3e50;
+        margin-top: 0;
+      }
+      .instructions ol {
+        color: #495057;
+        line-height: 1.6;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>🔖 Wallabag Extension Icon Generator</h1>
-        
-        <div class="icon-preview" id="iconPreview">
-            <!-- Icons will be generated here -->
-        </div>
-        
-        <div class="generate-all">
-            <button onclick="generateAllIcons()">すべてのアイコンを生成</button>
-        </div>
-        
-        <div class="instructions">
-            <h3>📋 使用方法</h3>
-            <ol>
-                <li>「すべてのアイコンを生成」ボタンをクリック</li>
-                <li>各アイコンの「ダウンロード」ボタンで個別にダウンロード</li>
-                <li>ダウンロードしたPNGファイルを <code>src/assets/icons/</code> に配置</li>
-                <li>既存のプレースホルダーファイルを置き換え</li>
-            </ol>
-            <p><strong>必要なサイズ:</strong> 16x16, 32x32, 48x48, 128x128</p>
-        </div>
+      <h1>🔖 Wallabag Extension Icon Generator</h1>
+
+      <div class="icon-preview" id="iconPreview">
+        <!-- Icons will be generated here -->
+      </div>
+
+      <div class="generate-all">
+        <button onclick="generateAllIcons()">すべてのアイコンを生成</button>
+      </div>
+
+      <div class="instructions">
+        <h3>📋 使用方法</h3>
+        <ol>
+          <li>「すべてのアイコンを生成」ボタンをクリック</li>
+          <li>各アイコンの「ダウンロード」ボタンで個別にダウンロード</li>
+          <li>
+            ダウンロードしたPNGファイルを <code>src/assets/icons/</code> に配置
+          </li>
+          <li>既存のプレースホルダーファイルを置き換え</li>
+        </ol>
+        <p><strong>必要なサイズ:</strong> 16x16, 32x32, 48x48, 128x128</p>
+      </div>
     </div>
 
     <script>
-        // SVGの定義
-        const svgContent = `
+      // SVGの定義
+      const svgContent = `
             <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -164,78 +166,78 @@
             </svg>
         `;
 
-        // 必要なサイズ
-        const iconSizes = [16, 32, 48, 128];
+      // 必要なサイズ
+      const iconSizes = [16, 32, 48, 128];
 
-        function generateAllIcons() {
-            const container = document.getElementById('iconPreview');
-            container.innerHTML = '';
-            
-            iconSizes.forEach(size => {
-                generateIcon(size);
-            });
-        }
+      function generateAllIcons() {
+        const container = document.getElementById('iconPreview');
+        container.innerHTML = '';
 
-        function generateIcon(size) {
-            const container = document.getElementById('iconPreview');
-            
-            // アイテムコンテナを作成
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'icon-item';
-            
-            // タイトル
-            const title = document.createElement('h3');
-            title.textContent = `${size}x${size}`;
-            itemDiv.appendChild(title);
-            
-            // キャンバス作成
-            const canvas = document.createElement('canvas');
-            canvas.width = size;
-            canvas.height = size;
-            canvas.style.width = size < 48 ? '48px' : `${size}px`;
-            canvas.style.height = size < 48 ? '48px' : `${size}px`;
-            canvas.style.imageRendering = 'pixelated';
-            
-            const ctx = canvas.getContext('2d');
-            
-            // SVGをImageとして読み込み
-            const img = new Image();
-            const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' });
-            const url = URL.createObjectURL(svgBlob);
-            
-            img.onload = function() {
-                ctx.drawImage(img, 0, 0, size, size);
-                URL.revokeObjectURL(url);
-            };
-            
-            img.src = url;
-            itemDiv.appendChild(canvas);
-            
-            // ダウンロードボタン
-            const downloadBtn = document.createElement('button');
-            downloadBtn.className = 'download-btn';
-            downloadBtn.textContent = 'ダウンロード';
-            downloadBtn.onclick = () => downloadIcon(canvas, size);
-            itemDiv.appendChild(downloadBtn);
-            
-            container.appendChild(itemDiv);
-        }
+        iconSizes.forEach((size) => {
+          generateIcon(size);
+        });
+      }
 
-        function downloadIcon(canvas, size) {
-            canvas.toBlob(function(blob) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `icon-${size}.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 'image/png');
-        }
+      function generateIcon(size) {
+        const container = document.getElementById('iconPreview');
 
-        // ページロード時に自動生成
-        window.addEventListener('load', generateAllIcons);
+        // アイテムコンテナを作成
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'icon-item';
+
+        // タイトル
+        const title = document.createElement('h3');
+        title.textContent = `${size}x${size}`;
+        itemDiv.appendChild(title);
+
+        // キャンバス作成
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        canvas.style.width = size < 48 ? '48px' : `${size}px`;
+        canvas.style.height = size < 48 ? '48px' : `${size}px`;
+        canvas.style.imageRendering = 'pixelated';
+
+        const ctx = canvas.getContext('2d');
+
+        // SVGをImageとして読み込み
+        const img = new Image();
+        const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(svgBlob);
+
+        img.onload = function () {
+          ctx.drawImage(img, 0, 0, size, size);
+          URL.revokeObjectURL(url);
+        };
+
+        img.src = url;
+        itemDiv.appendChild(canvas);
+
+        // ダウンロードボタン
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.textContent = 'ダウンロード';
+        downloadBtn.onclick = () => downloadIcon(canvas, size);
+        itemDiv.appendChild(downloadBtn);
+
+        container.appendChild(itemDiv);
+      }
+
+      function downloadIcon(canvas, size) {
+        canvas.toBlob(function (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `icon-${size}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+      }
+
+      // ページロード時に自動生成
+      window.addEventListener('load', generateAllIcons);
     </script>
-</body>
+  </body>
 </html>

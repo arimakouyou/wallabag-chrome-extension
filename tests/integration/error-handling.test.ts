@@ -2,38 +2,38 @@
  * エラーハンドリング統合テスト
  * 様々なエラーシナリオでのシステムの動作をテスト
  */
-
+import { mock, MockProxy } from 'jest-mock-extended';
 import { WallabagApiClient } from '../../src/lib/wallabag-api';
 import { ConfigManager } from '../../src/lib/config-manager';
 import {
   Config,
-  ErrorType,
   PageInfo,
   ExtensionMessage,
-  MessageType
+  MessageType,
 } from '../../src/lib/types';
+import { BackgroundService } from '../../src/background/background';
+
+// Chrome APIのモック型
+type MockChrome = {
+  storage: {
+    local: MockProxy<chrome.storage.LocalStorageArea>;
+  };
+  runtime: MockProxy<chrome.runtime.Runtime>;
+  tabs: MockProxy<chrome.tabs.Tabs>;
+  notifications: MockProxy<chrome.notifications.Notifications>;
+  action: MockProxy<chrome.action.Action>;
+};
 
 // Fetch APIのモック
 global.fetch = jest.fn();
 const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
 
 // ConfigManagerのモック
-jest.mock('../../src/lib/config-manager', () => ({
-  ConfigManager: {
-    getConfig: jest.fn(),
-    setConfig: jest.fn(),
-    isConfigured: jest.fn(),
-    isTokenValid: jest.fn(),
-    hasAuthCredentials: jest.fn(),
-    saveTokens: jest.fn(),
-    clearTokens: jest.fn(),
-  },
-}));
-
+jest.mock('../../src/lib/config-manager');
 const mockConfigManager = ConfigManager as jest.Mocked<typeof ConfigManager>;
 
 describe('エラーハンドリング統合テスト', () => {
-  let mockChrome: any;
+  let mockChrome: MockChrome;
   let baseUrl: string;
   let client: WallabagApiClient;
 
@@ -44,32 +44,15 @@ describe('エラーハンドリング統合テスト', () => {
     // Chrome APIのモック
     mockChrome = {
       storage: {
-        local: {
-          get: jest.fn(),
-          set: jest.fn(),
-          remove: jest.fn(),
-        },
+        local: mock<chrome.storage.LocalStorageArea>(),
       },
-      runtime: {
-        onMessage: {
-          addListener: jest.fn(),
-        },
-        sendMessage: jest.fn(),
-      },
-      tabs: {
-        query: jest.fn(),
-        sendMessage: jest.fn(),
-      },
-      notifications: {
-        create: jest.fn(),
-      },
-      action: {
-        setIcon: jest.fn(),
-        setTitle: jest.fn(),
-      },
+      runtime: mock<chrome.runtime.Runtime>(),
+      tabs: mock<chrome.tabs.Tabs>(),
+      notifications: mock<chrome.notifications.Notifications>(),
+      action: mock<chrome.action.Action>(),
     };
 
-    global.chrome = mockChrome;
+    global.chrome = mockChrome as any;
 
     jest.clearAllMocks();
     mockFetch.mockClear();
@@ -88,10 +71,12 @@ describe('エラーハンドリング統合テスト', () => {
         client_id: 'test-client',
         client_secret: 'test-secret',
         username: 'testuser',
-        password: 'testpass'
+        password: 'testpass',
       };
 
-      await expect(client.authenticate(credentials)).rejects.toThrow('認証に失敗しました');
+      await expect(client.authenticate(credentials)).rejects.toThrow(
+        '認証に失敗しました'
+      );
 
       // リトライが実行されることを確認（デフォルト3回）
       expect(mockFetch).toHaveBeenCalledTimes(3);
@@ -122,14 +107,15 @@ describe('エラーハンドリング統合テスト', () => {
         clientSecret: 'test-secret',
         username: 'testuser',
         password: 'testpass',
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
       mockConfigManager.isTokenValid.mockResolvedValue(true);
 
-      await expect(client.createEntry({ url: 'https://example.com' }))
-        .rejects.toThrow('エントリの作成に失敗しました');
+      await expect(
+        client.createEntry({ url: 'https://example.com' })
+      ).rejects.toThrow('エントリの作成に失敗しました');
 
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
@@ -139,7 +125,7 @@ describe('エラーハンドリング統合テスト', () => {
     it('HTTP 400 Bad Requestエラーを適切にハンドリングする', async () => {
       const errorResponse = {
         error: 'invalid_request',
-        error_description: 'URL parameter is required'
+        error_description: 'URL parameter is required',
       };
 
       mockFetch.mockResolvedValue({
@@ -147,19 +133,20 @@ describe('エラーハンドリング統合テスト', () => {
         status: 400,
         statusText: 'Bad Request',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue(errorResponse)
-      } as any);
+        json: jest.fn().mockResolvedValue(errorResponse),
+      } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
       mockConfigManager.isTokenValid.mockResolvedValue(true);
 
-      await expect(client.createEntry({ url: '' }))
-        .rejects.toThrow('エントリの作成に失敗しました');
+      await expect(client.createEntry({ url: '' })).rejects.toThrow(
+        'エントリの作成に失敗しました'
+      );
 
       // 400エラーはリトライしないことを確認
       expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -168,7 +155,7 @@ describe('エラーハンドリング統合テスト', () => {
     it('HTTP 401 Unauthorizedエラーを適切にハンドリングする', async () => {
       const errorResponse = {
         error: 'invalid_token',
-        error_description: 'The access token provided is invalid'
+        error_description: 'The access token provided is invalid',
       };
 
       mockFetch.mockResolvedValue({
@@ -176,18 +163,20 @@ describe('エラーハンドリング統合テスト', () => {
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue(errorResponse)
-      } as any);
+        json: jest.fn().mockResolvedValue(errorResponse),
+      } as unknown as Response);
 
       const credentials = {
         grant_type: 'password' as const,
         client_id: 'invalid-client',
         client_secret: 'invalid-secret',
         username: 'testuser',
-        password: 'testpass'
+        password: 'testpass',
       };
 
-      await expect(client.authenticate(credentials)).rejects.toThrow('認証に失敗しました');
+      await expect(client.authenticate(credentials)).rejects.toThrow(
+        '認証に失敗しました'
+      );
 
       // 401エラーはリトライしないことを確認
       expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -201,20 +190,21 @@ describe('エラーハンドリング統合テスト', () => {
         headers: new Headers({ 'content-type': 'application/json' }),
         json: jest.fn().mockResolvedValue({
           error: 'not_found',
-          error_description: 'Entry not found'
-        })
-      } as any);
+          error_description: 'Entry not found',
+        }),
+      } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
       mockConfigManager.isTokenValid.mockResolvedValue(true);
 
-      await expect(client.getEntry(99999))
-        .rejects.toThrow('エントリの取得に失敗しました');
+      await expect(client.getEntry(99999)).rejects.toThrow(
+        'エントリの取得に失敗しました'
+      );
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
@@ -229,7 +219,7 @@ describe('エラーハンドリング統合テスト', () => {
         updated_at: '2025-08-03T10:00:00Z',
         starred: false,
         archived: false,
-        tags: []
+        tags: [],
       };
 
       mockFetch
@@ -237,31 +227,31 @@ describe('エラーハンドリング統合テスト', () => {
           ok: false,
           status: 429,
           statusText: 'Too Many Requests',
-          headers: new Headers({ 
+          headers: new Headers({
             'content-type': 'application/json',
-            'retry-after': '60'
+            'retry-after': '60',
           }),
           json: jest.fn().mockResolvedValue({
-            error: 'rate_limit_exceeded'
-          })
-        } as any)
+            error: 'rate_limit_exceeded',
+          }),
+        } as unknown as Response)
         .mockResolvedValueOnce({
           ok: true,
           status: 201,
           headers: new Headers({ 'content-type': 'application/json' }),
-          json: jest.fn().mockResolvedValue(entryResponse)
-        } as any);
+          json: jest.fn().mockResolvedValue(entryResponse),
+        } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
       mockConfigManager.isTokenValid.mockResolvedValue(true);
 
       // delay関数をモック
-      jest.spyOn(client as any, 'delay').mockResolvedValue();
+      jest.spyOn(client as any, 'delay').mockResolvedValue(undefined);
 
       const result = await client.createEntry({ url: 'https://example.com' });
 
@@ -279,7 +269,7 @@ describe('エラーハンドリング統合テスト', () => {
         updated_at: '2025-08-03T10:00:00Z',
         starred: false,
         archived: false,
-        tags: []
+        tags: [],
       };
 
       mockFetch
@@ -288,24 +278,24 @@ describe('エラーハンドリング統合テスト', () => {
           status: 500,
           statusText: 'Internal Server Error',
           headers: new Headers({ 'content-type': 'application/json' }),
-          json: jest.fn().mockResolvedValue({})
-        } as any)
+          json: jest.fn().mockResolvedValue({}),
+        } as unknown as Response)
         .mockResolvedValueOnce({
           ok: true,
           status: 201,
           headers: new Headers({ 'content-type': 'application/json' }),
-          json: jest.fn().mockResolvedValue(entryResponse)
-        } as any);
+          json: jest.fn().mockResolvedValue(entryResponse),
+        } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
       mockConfigManager.isTokenValid.mockResolvedValue(true);
 
-      jest.spyOn(client as any, 'delay').mockResolvedValue();
+      jest.spyOn(client as any, 'delay').mockResolvedValue(undefined);
 
       const result = await client.createEntry({ url: 'https://example.com' });
 
@@ -321,22 +311,23 @@ describe('エラーハンドリング統合テスト', () => {
         headers: new Headers({ 'content-type': 'application/json' }),
         json: jest.fn().mockResolvedValue({
           error: 'service_unavailable',
-          error_description: 'Service temporarily unavailable'
-        })
-      } as any);
+          error_description: 'Service temporarily unavailable',
+        }),
+      } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
       mockConfigManager.isTokenValid.mockResolvedValue(true);
 
-      jest.spyOn(client as any, 'delay').mockResolvedValue();
+      jest.spyOn(client as any, 'delay').mockResolvedValue(undefined);
 
-      await expect(client.createEntry({ url: 'https://example.com' }))
-        .rejects.toThrow('エントリの作成に失敗しました');
+      await expect(
+        client.createEntry({ url: 'https://example.com' })
+      ).rejects.toThrow('エントリの作成に失敗しました');
 
       // 503エラーはリトライされることを確認
       expect(mockFetch).toHaveBeenCalledTimes(3);
@@ -347,7 +338,7 @@ describe('エラーハンドリング統合テスト', () => {
     it('無効なクライアント認証情報エラーを適切にハンドリングする', async () => {
       const errorResponse = {
         error: 'invalid_client',
-        error_description: 'Client authentication failed'
+        error_description: 'Client authentication failed',
       };
 
       mockFetch.mockResolvedValue({
@@ -355,23 +346,25 @@ describe('エラーハンドリング統合テスト', () => {
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue(errorResponse)
-      } as any);
+        json: jest.fn().mockResolvedValue(errorResponse),
+      } as unknown as Response);
 
       const credentials = {
         grant_type: 'password' as const,
         client_id: 'invalid-client',
         client_secret: 'invalid-secret',
         username: 'testuser',
-        password: 'testpass'
+        password: 'testpass',
       };
 
-      await expect(client.authenticate(credentials)).rejects.toThrow('認証に失敗しました');
+      await expect(client.authenticate(credentials)).rejects.toThrow(
+        '認証に失敗しました'
+      );
 
       expect(mockFetch).toHaveBeenCalledWith(
         `${baseUrl}/oauth/v2/token`,
         expect.objectContaining({
-          method: 'POST'
+          method: 'POST',
         })
       );
     });
@@ -379,7 +372,7 @@ describe('エラーハンドリング統合テスト', () => {
     it('無効なユーザー認証情報エラーを適切にハンドリングする', async () => {
       const errorResponse = {
         error: 'invalid_grant',
-        error_description: 'Invalid username and password combination'
+        error_description: 'Invalid username and password combination',
       };
 
       mockFetch.mockResolvedValue({
@@ -387,24 +380,26 @@ describe('エラーハンドリング統合テスト', () => {
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue(errorResponse)
-      } as any);
+        json: jest.fn().mockResolvedValue(errorResponse),
+      } as unknown as Response);
 
       const credentials = {
         grant_type: 'password' as const,
         client_id: 'valid-client',
         client_secret: 'valid-secret',
         username: 'invalid-user',
-        password: 'invalid-pass'
+        password: 'invalid-pass',
       };
 
-      await expect(client.authenticate(credentials)).rejects.toThrow('認証に失敗しました');
+      await expect(client.authenticate(credentials)).rejects.toThrow(
+        '認証に失敗しました'
+      );
     });
 
     it('リフレッシュトークンエラーでトークンをクリアする', async () => {
       const errorResponse = {
         error: 'invalid_grant',
-        error_description: 'The refresh token is invalid'
+        error_description: 'The refresh token is invalid',
       };
 
       mockFetch.mockResolvedValue({
@@ -412,8 +407,8 @@ describe('エラーハンドリング統合テスト', () => {
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue(errorResponse)
-      } as any);
+        json: jest.fn().mockResolvedValue(errorResponse),
+      } as unknown as Response);
 
       mockConfigManager.clearTokens.mockResolvedValue();
 
@@ -421,7 +416,7 @@ describe('エラーハンドリング統合テスト', () => {
         grant_type: 'refresh_token' as const,
         refresh_token: 'invalid-refresh-token',
         client_id: 'test-client',
-        client_secret: 'test-secret'
+        client_secret: 'test-secret',
       };
 
       await expect(client.refreshToken(refreshRequest)).rejects.toThrow();
@@ -433,21 +428,27 @@ describe('エラーハンドリング統合テスト', () => {
 
   describe('設定エラーハンドリング', () => {
     it('Chrome Storage容量制限エラーを適切にハンドリングする', async () => {
-      mockChrome.storage.local.set.mockRejectedValue(new Error('QUOTA_BYTES quota exceeded'));
+      mockChrome.storage.local.set.mockRejectedValue(
+        new Error('QUOTA_BYTES quota exceeded')
+      );
 
       const config: Partial<Config> = {
         serverUrl: 'https://wallabag.test.com',
         clientId: 'test-client',
         clientSecret: 'test-secret',
         username: 'testuser',
-        password: 'testpass'
+        password: 'testpass',
       };
 
-      await expect(ConfigManager.setConfig(config)).rejects.toThrow('設定の保存に失敗しました');
+      await expect(ConfigManager.setConfig(config)).rejects.toThrow(
+        '設定の保存に失敗しました'
+      );
     });
 
     it('Chrome Storage読み込みエラーを適切にハンドリングする', async () => {
-      mockChrome.storage.local.get.mockRejectedValue(new Error('Storage is not available'));
+      mockChrome.storage.local.get.mockRejectedValue(
+        new Error('Storage is not available')
+      );
 
       const config = await ConfigManager.getConfig();
 
@@ -461,7 +462,7 @@ describe('エラーハンドリング統合テスト', () => {
         clientId: '',
         clientSecret: 'short',
         username: 'ab', // 3文字未満
-        password: '123' // 短すぎる
+        password: '123', // 短すぎる
       };
 
       const validation = ConfigManager.validateConfig(invalidConfig);
@@ -470,16 +471,17 @@ describe('エラーハンドリング統合テスト', () => {
       expect(validation.errors).toContain('サーバーURLの形式が正しくありません');
       expect(validation.errors).toContain('クライアントIDは必須です');
       expect(validation.errors).toContain('ユーザー名は3文字以上で入力してください');
-      expect(validation.warnings).toContain('クライアントシークレットが短すぎる可能性があります');
+      expect(validation.warnings).toContain(
+        'クライアントシークレットが短すぎる可能性があります'
+      );
       expect(validation.warnings).toContain('パスワードが短すぎる可能性があります');
     });
   });
 
   describe('Background Service エラーハンドリング', () => {
-    let backgroundService: any;
+    let backgroundService: BackgroundService;
 
     beforeEach(async () => {
-      const BackgroundService = require('../../src/background/background').BackgroundService;
       backgroundService = new BackgroundService();
       await backgroundService.initialize();
     });
@@ -489,15 +491,17 @@ describe('エラーハンドリング統合テスト', () => {
 
       const pageInfo: PageInfo = {
         url: 'https://example.com',
-        title: 'Test Page'
+        title: 'Test Page',
       };
 
       const saveMessage: ExtensionMessage = {
         type: MessageType.SAVE_PAGE,
-        payload: pageInfo
+        payload: pageInfo,
       };
 
-      const response = await backgroundService['handleMessage'](saveMessage, { tab: { id: 1 } });
+      const response = await backgroundService['handleMessage'](saveMessage, {
+        tab: { id: 1 },
+      });
 
       expect(response.type).toBe(MessageType.SAVE_PAGE_RESPONSE);
       expect(response.payload.success).toBe(false);
@@ -512,22 +516,24 @@ describe('エラーハンドリング統合テスト', () => {
         status: 500,
         statusText: 'Internal Server Error',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue({})
-      } as any);
+        json: jest.fn().mockResolvedValue({}),
+      } as unknown as Response);
 
-      jest.spyOn(client as any, 'delay').mockResolvedValue();
+      jest.spyOn(client as any, 'delay').mockResolvedValue(undefined);
 
       const pageInfo: PageInfo = {
         url: 'https://example.com',
-        title: 'Test Page'
+        title: 'Test Page',
       };
 
       const saveMessage: ExtensionMessage = {
         type: MessageType.SAVE_PAGE,
-        payload: pageInfo
+        payload: pageInfo,
       };
 
-      const response = await backgroundService['handleMessage'](saveMessage, { tab: { id: 1 } });
+      const response = await backgroundService['handleMessage'](saveMessage, {
+        tab: { id: 1 },
+      });
 
       expect(response.type).toBe(MessageType.SAVE_PAGE_RESPONSE);
       expect(response.payload.success).toBe(false);
@@ -535,7 +541,9 @@ describe('エラーハンドリング統合テスト', () => {
     });
 
     it('Chrome API エラーを適切にハンドリングする', async () => {
-      mockChrome.notifications.create.mockRejectedValue(new Error('Notifications API not available'));
+      mockChrome.notifications.create.mockRejectedValue(
+        new Error('Notifications API not available')
+      );
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
@@ -552,7 +560,7 @@ describe('エラーハンドリング統合テスト', () => {
     it('タブが存在しない場合のエラーハンドリングを確認する', async () => {
       const getPageInfoMessage: ExtensionMessage = {
         type: MessageType.GET_PAGE_INFO,
-        payload: {}
+        payload: {},
       };
 
       await expect(
@@ -561,11 +569,13 @@ describe('エラーハンドリング統合テスト', () => {
     });
 
     it('Content Script通信エラーを適切にハンドリングする', async () => {
-      mockChrome.tabs.sendMessage.mockRejectedValue(new Error('Could not establish connection'));
+      mockChrome.tabs.sendMessage.mockRejectedValue(
+        new Error('Could not establish connection')
+      );
 
       const getPageInfoMessage: ExtensionMessage = {
         type: MessageType.GET_PAGE_INFO,
-        payload: {}
+        payload: {},
       };
 
       const response = await backgroundService['handleMessage'](
@@ -576,7 +586,7 @@ describe('エラーハンドリング統合テスト', () => {
       expect(response.type).toBe(MessageType.PAGE_INFO_RESPONSE);
       expect(response.payload).toEqual({
         url: 'https://example.com',
-        title: 'Test'
+        title: 'Test',
       });
     });
   });
@@ -587,15 +597,17 @@ describe('エラーハンドリング統合テスト', () => {
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'text/html' }),
-        json: jest.fn().mockRejectedValue(new Error('Unexpected token < in JSON'))
-      } as any);
+        json: jest
+          .fn()
+          .mockRejectedValue(new Error('Unexpected token < in JSON')),
+      } as unknown as Response);
 
       const credentials = {
         grant_type: 'password' as const,
         client_id: 'test-client',
         client_secret: 'test-secret',
         username: 'testuser',
-        password: 'testpass'
+        password: 'testpass',
       };
 
       await expect(client.authenticate(credentials)).rejects.toThrow();
@@ -606,12 +618,12 @@ describe('エラーハンドリング統合テスト', () => {
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockResolvedValue(null)
-      } as any);
+        json: jest.fn().mockResolvedValue(null),
+      } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
@@ -628,47 +640,39 @@ describe('エラーハンドリング統合テスト', () => {
         status: 400,
         statusText: 'Bad Request',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockRejectedValue(new Error('Unexpected end of JSON input'))
-      } as any);
+        json: jest
+          .fn()
+          .mockRejectedValue(new Error('Unexpected end of JSON input')),
+      } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
       mockConfigManager.isTokenValid.mockResolvedValue(true);
 
-      await expect(client.createEntry({ url: 'https://example.com' }))
-        .rejects.toThrow();
+      await expect(
+        client.createEntry({ url: 'https://example.com' })
+      ).rejects.toThrow();
     });
   });
 
   describe('リソース制限エラーハンドリング', () => {
     it('メモリ不足エラーを適切にハンドリングする', async () => {
-      // 大きなレスポンスをシミュレート
-      const largeResponse = {
-        id: 1,
-        url: 'https://example.com',
-        title: 'Large Content',
-        content: 'x'.repeat(10000000), // 10MB のコンテンツ
-        created_at: '2025-08-03T10:00:00Z',
-        updated_at: '2025-08-03T10:00:00Z',
-        starred: false,
-        archived: false,
-        tags: []
-      };
-
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: jest.fn().mockRejectedValue(new Error('Maximum call stack size exceeded'))
-      } as any);
+        json: jest
+          .fn()
+          .mockRejectedValue(new Error('Maximum call stack size exceeded')),
+      } as unknown as Response);
 
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
@@ -680,7 +684,7 @@ describe('エラーハンドリング統合テスト', () => {
     it('同時リクエスト制限エラーを適切にハンドリングする', async () => {
       const config: Partial<Config> = {
         serverUrl: baseUrl,
-        accessToken: 'valid-token'
+        accessToken: 'valid-token',
       };
 
       mockConfigManager.getConfig.mockResolvedValue(config);
@@ -695,9 +699,9 @@ describe('エラーハンドリング統合テスト', () => {
           headers: new Headers({ 'content-type': 'application/json' }),
           json: jest.fn().mockResolvedValue({
             error: 'rate_limit_exceeded',
-            error_description: 'Too many concurrent requests'
-          })
-        } as any)
+            error_description: 'Too many concurrent requests',
+          }),
+        } as unknown as Response)
         .mockResolvedValueOnce({
           ok: true,
           status: 201,
@@ -711,11 +715,11 @@ describe('エラーハンドリング統合テスト', () => {
             updated_at: '2025-08-03T10:00:00Z',
             starred: false,
             archived: false,
-            tags: []
-          })
-        } as any);
+            tags: [],
+          }),
+        } as unknown as Response);
 
-      jest.spyOn(client as any, 'delay').mockResolvedValue();
+      jest.spyOn(client as any, 'delay').mockResolvedValue(undefined);
 
       const result = await client.createEntry({ url: 'https://example.com' });
 

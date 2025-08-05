@@ -34,14 +34,14 @@ class ContentScript {
       (message: ExtensionMessage, _sender, sendResponse) => {
         this.handleMessage(message)
           .then(sendResponse)
-          .catch(error => {
+          .catch((error) => {
             console.error('Content Script メッセージ処理エラー:', error);
             sendResponse({
               type: MessageType.ERROR_NOTIFICATION,
-              payload: { error: error.message }
+              payload: { error: error.message },
             });
           });
-        
+
         // 非同期レスポンスを示すためtrueを返す
         return true;
       }
@@ -53,12 +53,14 @@ class ContentScript {
    * @param message 受信メッセージ
    * @returns レスポンス
    */
-  private async handleMessage(message: ExtensionMessage): Promise<ExtensionMessage> {
+  private async handleMessage(
+    message: ExtensionMessage
+  ): Promise<ExtensionMessage> {
     switch (message.type) {
       case MessageType.GET_PAGE_INFO:
         return {
           type: MessageType.PAGE_INFO_RESPONSE,
-          payload: this.getPageInfo()
+          payload: this.getPageInfo(),
         };
 
       default:
@@ -73,7 +75,7 @@ class ContentScript {
   getPageInfo(): PageInfo {
     const pageInfo: PageInfo = {
       url: window.location.href,
-      title: this.getPageTitle()
+      title: this.getPageTitle(),
     };
 
     const description = this.getMetaDescription();
@@ -102,7 +104,7 @@ class ContentScript {
 
     // h1タグから取得を試行
     const h1Elements = document.querySelectorAll('h1');
-    for (const h1 of h1Elements) {
+    for (const h1 of Array.from(h1Elements)) {
       const text = h1.textContent?.trim();
       if (text && text.length > 0) {
         return text;
@@ -125,7 +127,7 @@ class ContentScript {
     try {
       const url = new URL(window.location.href);
       const pathname = url.pathname;
-      
+
       // パスの最後の部分を取得
       const lastSegment = pathname.split('/').filter(Boolean).pop();
       if (lastSegment) {
@@ -134,7 +136,7 @@ class ContentScript {
         // ハイフンやアンダースコアをスペースに変換
         return title.replace(/[-_]/g, ' ');
       }
-      
+
       // ドメイン名を返す
       return url.hostname;
     } catch {
@@ -188,7 +190,7 @@ class ContentScript {
       'link[rel="icon"]',
       'link[rel="shortcut icon"]',
       'link[rel="apple-touch-icon"]',
-      'link[rel="apple-touch-icon-precomposed"]'
+      'link[rel="apple-touch-icon-precomposed"]',
     ];
 
     for (const selector of iconLinks) {
@@ -203,7 +205,7 @@ class ContentScript {
       '/favicon.ico',
       '/favicon.png',
       '/assets/favicon.ico',
-      '/static/favicon.ico'
+      '/static/favicon.ico',
     ];
 
     const baseUrl = window.location.origin;
@@ -221,7 +223,9 @@ class ContentScript {
    * @returns content属性の値
    */
   private getMetaByName(name: string): string | null {
-    const meta = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+    const meta = document.querySelector<HTMLMetaElement>(
+      `meta[name="${name}"]`
+    );
     return meta?.content || null;
   }
 
@@ -231,7 +235,9 @@ class ContentScript {
    * @returns content属性の値
    */
   private getMetaProperty(property: string): string | null {
-    const meta = document.querySelector<HTMLMetaElement>(`meta[property="${property}"]`);
+    const meta = document.querySelector<HTMLMetaElement>(
+      `meta[property="${property}"]`
+    );
     return meta?.content || null;
   }
 
@@ -242,9 +248,9 @@ class ContentScript {
    */
   private cleanText(text: string): string {
     return text
-      .replace(/\s+/g, ' ')  // 複数の空白を単一スペースに
-      .replace(/\n/g, ' ')   // 改行をスペースに
-      .trim();               // 前後の空白を削除
+      .replace(/\s+/g, ' ') // 複数の空白を単一スペースに
+      .replace(/\n/g, ' ') // 改行をスペースに
+      .trim(); // 前後の空白を削除
   }
 
   /**
@@ -284,7 +290,7 @@ class ContentScript {
 
       // 設定を確認（Background Scriptから取得）
       const response = await chrome.runtime.sendMessage({
-        type: MessageType.GET_CONFIG
+        type: MessageType.GET_CONFIG,
       });
 
       // インジェクション機能が無効な場合はスキップ
@@ -330,7 +336,7 @@ class ContentScript {
           const pageInfo = this.getPageInfo();
           await chrome.runtime.sendMessage({
             type: MessageType.SAVE_PAGE,
-            payload: pageInfo
+            payload: pageInfo,
           });
 
           button.textContent = '✅ 保存完了';
@@ -338,7 +344,6 @@ class ContentScript {
             button.textContent = '📖 Wallabagに保存';
             button.disabled = false;
           }, 2000);
-
         } catch (error) {
           console.error('保存エラー:', error);
           button.textContent = '❌ 保存失敗';
@@ -352,7 +357,6 @@ class ContentScript {
       // ページに追加
       document.body.appendChild(button);
       console.log('Wallabag保存ボタンを挿入しました');
-
     } catch (error) {
       console.error('保存ボタンの挿入に失敗しました:', error);
     }
@@ -364,16 +368,20 @@ class ContentScript {
   setupKeyboardShortcuts(): void {
     document.addEventListener('keydown', async (event) => {
       // Ctrl+Shift+S または Cmd+Shift+S でページを保存
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'S') {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        event.key === 'S'
+      ) {
         event.preventDefault();
-        
+
         try {
           const pageInfo = this.getPageInfo();
           await chrome.runtime.sendMessage({
             type: MessageType.SAVE_PAGE,
-            payload: pageInfo
+            payload: pageInfo,
           });
-          
+
           console.log('キーボードショートカットでページを保存しました');
         } catch (error) {
           console.error('キーボードショートカット保存エラー:', error);
@@ -399,7 +407,7 @@ if (document.readyState === 'loading') {
 window.addEventListener('load', () => {
   // 保存ボタン挿入（設定により制御）
   contentScript.injectSaveButton();
-  
+
   // キーボードショートカット設定
   contentScript.setupKeyboardShortcuts();
 });
