@@ -17,6 +17,7 @@ import {
 } from '../lib/types';
 import { ConfigManager } from '../lib/config-manager';
 import { createWallabagClient, savePage } from '../lib/wallabag-api';
+import { ConfigMigration } from '../lib/config-migration';
 
 /**
  * Background Service Workerクラス
@@ -35,6 +36,9 @@ class BackgroundService {
     console.log('Wallabag Chrome Extension Background Service を初期化中...');
 
     try {
+      // 🔒 セキュリティ強化: 自動マイグレーション実行
+      await ConfigMigration.autoMigrate();
+
       // イベントリスナーの設定
       this.setupEventListeners();
 
