@@ -153,16 +153,48 @@ class PopupController {
    */
   private async checkExtensionStatus(): Promise<void> {
     try {
-      const response = await this.sendMessage({
+      // まず基本的な設定状態をチェック
+      const checkResponse = await this.sendMessage({
         type: MessageType.CHECK_AUTH,
       });
 
-      const authStatus = response.payload as {
+      const authStatus = checkResponse.payload as {
         isConfigured: boolean;
         isAuthenticated: boolean;
       };
       this.isConfigured = authStatus.isConfigured;
-      this.isAuthenticated = authStatus.isAuthenticated;
+
+      // 設定が完了している場合は実際の接続テストを実行
+      if (this.isConfigured) {
+        this.elements.statusMessage.textContent = '接続を確認中...';
+        this.updateStatusIndicator();
+
+        const testResponse = await this.sendMessage({
+          type: MessageType.TEST_CONNECTION,
+        });
+
+        const testResult = testResponse.payload as {
+          isAuthenticated: boolean;
+          connectionTested: boolean;
+          reconnected?: boolean;
+          error?: string;
+        };
+
+        this.isAuthenticated = testResult.isAuthenticated;
+
+        // 自動再接続が成功した場合は通知
+        if (testResult.reconnected) {
+          this.showSuccess('Wallabagへの接続が復旧しました');
+          setTimeout(() => {
+            this.hideSuccess();
+          }, 3000);
+        } else if (!testResult.isAuthenticated && testResult.error) {
+          // 接続テスト失敗で再接続もできない場合
+          this.showError(`接続エラー: ${testResult.error}`);
+        }
+      } else {
+        this.isAuthenticated = false;
+      }
 
       // UI状態の更新
       this.updateStatusIndicator();
@@ -173,6 +205,8 @@ class PopupController {
       this.showError(
         `拡張機能の状態を確認できませんでした: ${error instanceof Error ? error.message : error}`
       );
+    } finally {
+      this.elements.statusMessage.textContent = '';
     }
   }
 
@@ -251,6 +285,39 @@ class PopupController {
         this.resetSaveOptions();
       } else {
         this.setSaveButtonState('error');
+        
+        // 認証エラーの場合は自動再接続を試行
+        if (result.error === 'auth_error' || result.message.includes('認証')) {
+          try {
+            console.log('認証エラーを検出、自動再接続を試行中...');
+            const testResponse = await this.sendMessage({
+              type: MessageType.TEST_CONNECTION,
+            });
+
+            const testResult = testResponse.payload as {
+              isAuthenticated: boolean;
+              reconnected?: boolean;
+              error?: string;
+            };
+
+            if (testResult.reconnected) {
+              this.showError('接続が切断されていたため再接続しました。再度保存してください。');
+              this.isAuthenticated = true;
+              this.updateStatusIndicator();
+              this.setSaveButtonState('default');
+              return;
+            } else if (testResult.isAuthenticated) {
+              this.showError('接続を確認しました。再度保存してください。');
+              this.isAuthenticated = true;
+              this.updateStatusIndicator();
+              this.setSaveButtonState('default');
+              return;
+            }
+          } catch (reconnectError) {
+            console.warn('自動再接続に失敗しました:', reconnectError);
+          }
+        }
+        
         this.showError(result.message || '保存に失敗しました');
       }
     } catch (error: unknown) {
