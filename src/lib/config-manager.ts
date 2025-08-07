@@ -1,9 +1,10 @@
 /**
  * Wallabag Chrome拡張機能 - 設定管理システム
- * Chrome Storage APIを使用した設定の保存・取得・検証
+ * Chrome Storage APIとWeb Crypto APIを使用した設定の安全な保存・取得・検証
  */
 
 import { Config, ConfigValidationResult } from './types';
+import { SecureCryptoManager } from './secure-crypto-manager';
 
 /**
  * 設定管理クラス
@@ -28,7 +29,7 @@ export class ConfigManager {
       const config = result[this.STORAGE_KEY] || {};
 
       // 暗号化されたフィールドを復号化
-      return this.decryptSensitiveFields(config);
+      return await this.decryptSensitiveFields(config);
     } catch (error) {
       console.error('設定の取得に失敗しました:', error);
       return {};
@@ -42,7 +43,7 @@ export class ConfigManager {
   static async setConfig(config: Partial<Config>): Promise<void> {
     try {
       // 機密情報を暗号化
-      const encryptedConfig = this.encryptSensitiveFields(config);
+      const encryptedConfig = await this.encryptSensitiveFields(config);
 
       await chrome.storage.local.set({
         [this.STORAGE_KEY]: encryptedConfig,
@@ -102,12 +103,13 @@ export class ConfigManager {
       }
     }
 
-    // サーバーURLの検証
+    // サーバーURLの検証（HTTPS強制）
     if (config.serverUrl) {
       if (!this.isValidUrl(config.serverUrl)) {
         errors.push('サーバーURLの形式が正しくありません');
       } else if (!config.serverUrl.startsWith('https://')) {
-        warnings.push('セキュリティのためHTTPSの使用を推奨します');
+        // 🔒 セキュリティ強化: HTTPSを強制
+        errors.push('セキュリティ上の理由により、HTTPSが必須です。HTTPは使用できません');
       }
     }
 
@@ -232,53 +234,84 @@ export class ConfigManager {
   }
 
   /**
-   * 機密フィールドの暗号化
+   * 機密フィールドの暗号化（Web Crypto API使用）
    * @param config 設定オブジェクト
-   * @returns 暗号化された設定
+   * @returns Promise<Partial<Config>> 暗号化された設定
    */
-  private static encryptSensitiveFields(
+  private static async encryptSensitiveFields(
     config: Partial<Config>
-  ): Partial<Config> {
+  ): Promise<Partial<Config>> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const newConfig: any = {};
+    const newConfig: any = { ...config };
+
     for (const key in config) {
       if (Object.prototype.hasOwnProperty.call(config, key)) {
         const value = config[key as keyof Config];
-        if (this.ENCRYPTED_FIELDS.includes(key) && typeof value === 'string') {
-          newConfig[key as keyof Config] = btoa(value);
-        } else {
-          newConfig[key as keyof Config] = value;
+        if (this.ENCRYPTED_FIELDS.includes(key) && typeof value === 'string' && value.length > 0) {
+          try {
+            // Web Crypto APIで真の暗号化
+            newConfig[key as keyof Config] = await SecureCryptoManager.encrypt(value);
+          } catch (error) {
+            console.error(`フィールド ${key} の暗号化に失敗:`, error);
+            throw new Error(`設定の暗号化に失敗しました: ${key}`);
+          }
         }
       }
     }
+
     return newConfig;
   }
 
   /**
-   * 機密フィールドの復号化
+   * 機密フィールドの復号化（Web Crypto API使用 + Base64マイグレーション対応）
    * @param config 暗号化された設定オブジェクト
-   * @returns 復号化された設定
+   * @returns Promise<Partial<Config>> 復号化された設定
    */
-  private static decryptSensitiveFields(
+  private static async decryptSensitiveFields(
     config: Partial<Config>
-  ): Partial<Config> {
+  ): Promise<Partial<Config>> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const newConfig: any = {};
+    const newConfig: any = { ...config };
+    let needsMigration = false;
+
     for (const key in config) {
       if (Object.prototype.hasOwnProperty.call(config, key)) {
         const value = config[key as keyof Config];
-        if (this.ENCRYPTED_FIELDS.includes(key) && typeof value === 'string') {
+        if (this.ENCRYPTED_FIELDS.includes(key) && typeof value === 'string' && value.length > 0) {
           try {
-            newConfig[key as keyof Config] = atob(value);
+            // まずWeb Crypto APIでの復号化を試行
+            if (await SecureCryptoManager.isWebCryptoData(value)) {
+              newConfig[key as keyof Config] = await SecureCryptoManager.decrypt(value);
+            } else if (SecureCryptoManager.isBase64Data(value)) {
+              // Base64データの場合はマイグレーション
+              console.log(`フィールド ${key} をBase64からWeb Crypto APIに移行します`);
+              const decoded = atob(value);
+              newConfig[key as keyof Config] = decoded;
+              needsMigration = true;
+            } else {
+              // プレーンテキストまたは不明な形式
+              newConfig[key as keyof Config] = value;
+            }
           } catch (error) {
             console.warn(`フィールド ${key} の復号化に失敗しました:`, error);
-            newConfig[key as keyof Config] = value;
+            // 復号化失敗時は空文字にしてユーザーに再入力を促す
+            newConfig[key as keyof Config] = '';
           }
-        } else {
-          newConfig[key as keyof Config] = value;
         }
       }
     }
+
+    // マイグレーションが必要な場合は再暗号化して保存
+    if (needsMigration) {
+      try {
+        console.log('Base64からWeb Crypto APIへの移行を実行中...');
+        await this.setConfig(newConfig);
+        console.log('設定のマイグレーションが完了しました');
+      } catch (error) {
+        console.error('設定のマイグレーション中にエラーが発生しました:', error);
+      }
+    }
+
     return newConfig;
   }
 

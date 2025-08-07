@@ -17,6 +17,7 @@ import {
 } from '../lib/types';
 import { ConfigManager } from '../lib/config-manager';
 import { createWallabagClient, savePage } from '../lib/wallabag-api';
+import { ConfigMigration } from '../lib/config-migration';
 
 /**
  * Background Service Workerクラス
@@ -24,6 +25,7 @@ import { createWallabagClient, savePage } from '../lib/wallabag-api';
  */
 class BackgroundService {
   private isInitialized = false;
+  private isContextMenuSetup = false;
 
   /**
    * サービスワーカーの初期化
@@ -34,6 +36,9 @@ class BackgroundService {
     console.log('Wallabag Chrome Extension Background Service を初期化中...');
 
     try {
+      // 🔒 セキュリティ強化: 自動マイグレーション実行
+      await ConfigMigration.autoMigrate();
+
       // イベントリスナーの設定
       this.setupEventListeners();
 
@@ -88,6 +93,8 @@ class BackgroundService {
     // 設定変更の監視
     ConfigManager.addConfigChangeListener(async () => {
       await this.updateExtensionIcon();
+      // 設定変更時のみコンテキストメニューを再設定
+      this.isContextMenuSetup = false;
       await this.setupContextMenus();
     });
 
@@ -132,13 +139,17 @@ class BackgroundService {
       case MessageType.CHECK_AUTH:
         return await this.handleCheckAuth();
 
+      case MessageType.TEST_CONNECTION:
+        return await this.handleTestConnection();
+
       case MessageType.REFRESH_TOKEN:
         return await this.handleRefreshToken();
 
-      case MessageType.GET_PAGE_INFO:
+      case MessageType.GET_PAGE_INFO: {
         // sender.tabが無効な場合は現在のアクティブタブを取得
         const tab = sender.tab || (await this.getCurrentActiveTab());
         return await this.handleGetPageInfo(tab);
+      }
 
       default:
         throw new Error(`未知のメッセージタイプ: ${message.type}`);
@@ -287,6 +298,86 @@ class BackgroundService {
   }
 
   /**
+   * 実際の接続テスト処理
+   */
+  private async handleTestConnection(): Promise<ExtensionMessage> {
+    try {
+      const client = await createWallabagClient();
+      
+      // 実際のAPI呼び出しでトークンの有効性をテスト
+      // エントリ一覧を1件取得することで接続を確認
+      await client.getEntries({ perPage: 1 });
+
+      return {
+        type: MessageType.AUTH_RESPONSE,
+        payload: {
+          isConfigured: true,
+          hasCredentials: true,
+          isTokenValid: true,
+          isAuthenticated: true,
+          connectionTested: true,
+        },
+      };
+    } catch (error: unknown) {
+      console.warn('接続テストに失敗しました、再接続を試行します:', error);
+      
+      try {
+        // 接続が失敗した場合、自動的に再認証を試行
+        const client = await createWallabagClient();
+        const config = await ConfigManager.getConfig();
+
+        if (config.clientId && config.clientSecret && config.username && config.password) {
+          // 再認証を実行
+          await client.authenticate({
+            grant_type: 'password',
+            client_id: config.clientId,
+            client_secret: config.clientSecret,
+            username: config.username,
+            password: config.password,
+          });
+
+          // 再認証後に再度接続をテスト
+          await client.getEntries({ perPage: 1 });
+
+          console.log('自動再接続に成功しました');
+          return {
+            type: MessageType.AUTH_RESPONSE,
+            payload: {
+              isConfigured: true,
+              hasCredentials: true,
+              isTokenValid: true,
+              isAuthenticated: true,
+              connectionTested: true,
+              reconnected: true,
+            },
+          };
+        } else {
+          throw new Error('認証情報が不足しています');
+        }
+      } catch (reconnectError: unknown) {
+        console.error('自動再接続に失敗しました:', reconnectError);
+        
+        let errorMessage = '接続テストと自動再接続に失敗しました';
+        if (reconnectError instanceof Error) {
+          errorMessage = reconnectError.message;
+        }
+
+        return {
+          type: MessageType.AUTH_RESPONSE,
+          payload: {
+            isConfigured: await ConfigManager.isConfigured(),
+            hasCredentials: await ConfigManager.hasAuthCredentials(),
+            isTokenValid: false,
+            isAuthenticated: false,
+            connectionTested: true,
+            error: errorMessage,
+          },
+        };
+      }
+    }
+  }
+
+  /**
    * トークン更新処理
    */
   private async handleRefreshToken(): Promise<ExtensionMessage> {
@@ -386,6 +477,13 @@ class BackgroundService {
         return;
       }
 
+      // 設定確認
+      const isConfigured = await ConfigManager.isConfigured();
+      if (!isConfigured) {
+        await this.showNotification('設定が必要', 'オプションページで設定を行ってください');
+        return;
+      }
+
       // ページ情報を取得
       const pageInfo: PageInfo = {
         url: tab.url,
@@ -397,6 +495,32 @@ class BackgroundService {
       const result = response.payload as SaveResult;
 
       if (!result.success) {
+        // 認証エラーの場合は自動再接続を試行
+        if (result.error === 'auth_error' || result.message.includes('認証')) {
+          try {
+            console.log('認証エラーを検出、自動再接続を試行中...');
+            const testResponse = await this.handleTestConnection();
+            const testResult = testResponse.payload as {
+              isAuthenticated: boolean;
+              reconnected?: boolean;
+            };
+
+            if (testResult.reconnected) {
+              await this.showNotification('接続復旧', 'Wallabagへの接続が復旧しました');
+              // 再接続後に再度保存を試行
+              const retryResponse = await this.handleSavePage(pageInfo);
+              const retryResult = retryResponse.payload as SaveResult;
+              
+              if (!retryResult.success) {
+                await this.showNotification('エラー', retryResult.message);
+              }
+              return;
+            }
+          } catch (reconnectError) {
+            console.warn('自動再接続に失敗しました:', reconnectError);
+          }
+        }
+
         await this.showNotification('エラー', result.message);
       }
     } catch (error: unknown) {
@@ -423,6 +547,11 @@ class BackgroundService {
    * コンテキストメニューの設定
    */
   private async setupContextMenus(): Promise<void> {
+    // 既に設定済みの場合はスキップ
+    if (this.isContextMenuSetup) {
+      return;
+    }
+
     try {
       // 既存のコンテキストメニューをクリア
       await chrome.contextMenus.removeAll();
@@ -436,8 +565,32 @@ class BackgroundService {
           contexts: ['page', 'link', 'selection'],
         };
 
-        chrome.contextMenus.create(menuItem);
-        console.log('コンテキストメニューを作成しました');
+        // コンテキストメニューが既に存在するかチェック
+        try {
+          // Promiseベースでcreateを待機
+          await new Promise<void>((resolve, reject) => {
+            chrome.contextMenus.create(menuItem, () => {
+              if (chrome.runtime.lastError) {
+                // 既に存在する場合のエラーは無視
+                if (chrome.runtime.lastError.message?.includes('duplicate id')) {
+                  console.log('コンテキストメニューは既に存在します');
+                  resolve();
+                } else {
+                  reject(new Error(chrome.runtime.lastError.message));
+                }
+              } else {
+                console.log('コンテキストメニューを作成しました');
+                resolve();
+              }
+            });
+          });
+          this.isContextMenuSetup = true;
+        } catch (createError) {
+          console.warn('コンテキストメニューの作成でエラーが発生しましたが続行します:', createError);
+        }
+      } else {
+        // 設定されていない場合は設定済みフラグをセット（メニューが不要なため）
+        this.isContextMenuSetup = true;
       }
     } catch (error) {
       console.error('コンテキストメニューの設定に失敗しました:', error);
@@ -500,6 +653,7 @@ const backgroundService = new BackgroundService();
 
 // Service Worker起動時の初期化
 chrome.runtime.onStartup.addListener(async () => {
+  console.log('Service Worker起動中...');
   await backgroundService.initialize();
 });
 
