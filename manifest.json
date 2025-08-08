@@ -51,7 +51,8 @@
     "activeTab",
     "contextMenus",
     "notifications",
-    "cookies"
+    "cookies",
+    "scripting"
   ],
 
   "host_permissions": [

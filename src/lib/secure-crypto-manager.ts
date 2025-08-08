@@ -17,6 +17,28 @@ export class SecureCryptoManager {
   private static cachedMasterKey: CryptoKey | null = null;
 
   /**
+   * 環境に応じた適切なCrypto APIを取得
+   * Service Worker環境とWebページ環境の両方に対応
+   * @returns SubtleCrypto インスタンス
+   */
+  private static getCrypto(): SubtleCrypto {
+    // Service Worker環境 (background script)
+    if (typeof self !== 'undefined' && self.crypto) {
+      return self.crypto.subtle;
+    }
+    // Webページ環境 (popup, options, content script)
+    if (typeof window !== 'undefined' && window.crypto) {
+      return window.crypto.subtle;
+    }
+    // グローバルなcrypto (Node.js v15+互換)
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      return crypto.subtle;
+    }
+    
+    throw new Error('Web Crypto API が利用できません');
+  }
+
+  /**
    * マスターキーを生成・取得
    * 初回のみ生成、以後は保存済みキーを使用
    * @returns CryptoKey マスターキー
@@ -34,7 +56,7 @@ export class SecureCryptoManager {
       if (result[this.MASTER_KEY_STORAGE_KEY]) {
         // 既存のキーをインポート
         const keyData = new Uint8Array(result[this.MASTER_KEY_STORAGE_KEY]);
-        this.cachedMasterKey = await window.crypto.subtle.importKey(
+        this.cachedMasterKey = await this.getCrypto().importKey(
           'raw',
           keyData,
           { name: this.ALGORITHM },
@@ -42,11 +64,10 @@ export class SecureCryptoManager {
           ['encrypt', 'decrypt']
         );
         
-        console.log('既存のマスターキーを読み込みました');
         return this.cachedMasterKey;
       } else {
         // 新しいキーを生成
-        const key = await window.crypto.subtle.generateKey(
+        const key = await this.getCrypto().generateKey(
           {
             name: this.ALGORITHM,
             length: this.KEY_LENGTH,
@@ -56,13 +77,13 @@ export class SecureCryptoManager {
         );
 
         // キーをエクスポートして保存
-        const exportedKey = await window.crypto.subtle.exportKey('raw', key);
+        const exportedKey = await this.getCrypto().exportKey('raw', key);
         await chrome.storage.local.set({
           [this.MASTER_KEY_STORAGE_KEY]: Array.from(new Uint8Array(exportedKey))
         });
 
         // 非抽出可能な形でキャッシュ
-        this.cachedMasterKey = await window.crypto.subtle.importKey(
+        this.cachedMasterKey = await this.getCrypto().importKey(
           'raw',
           exportedKey,
           { name: this.ALGORITHM },
@@ -70,11 +91,9 @@ export class SecureCryptoManager {
           ['encrypt', 'decrypt']
         );
 
-        console.log('新しいマスターキーを生成しました');
         return this.cachedMasterKey;
       }
     } catch (error) {
-      console.error('マスターキーの取得に失敗しました:', error);
       throw new Error('暗号化キーの取得に失敗しました');
     }
   }
@@ -84,7 +103,7 @@ export class SecureCryptoManager {
    * @returns Uint8Array ランダムな初期化ベクトル
    */
   private static generateIV(): Uint8Array {
-    return window.crypto.getRandomValues(new Uint8Array(this.IV_LENGTH));
+    return crypto.getRandomValues(new Uint8Array(this.IV_LENGTH));
   }
 
   /**
@@ -103,7 +122,7 @@ export class SecureCryptoManager {
       const encoder = new TextEncoder();
 
       // AES-GCM暗号化実行
-      const ciphertext = await window.crypto.subtle.encrypt(
+      const ciphertext = await this.getCrypto().encrypt(
         {
           name: this.ALGORITHM,
           iv: new Uint8Array(iv),
@@ -120,7 +139,6 @@ export class SecureCryptoManager {
       // Base64エンコードして返却
       return btoa(String.fromCharCode(...combined));
     } catch (error) {
-      console.error('暗号化処理中にエラーが発生しました:', error);
       throw new Error('データの暗号化に失敗しました');
     }
   }
@@ -158,7 +176,7 @@ export class SecureCryptoManager {
       const ciphertext = combined.slice(this.IV_LENGTH);
 
       // AES-GCM復号化実行
-      const decrypted = await window.crypto.subtle.decrypt(
+      const decrypted = await this.getCrypto().decrypt(
         {
           name: this.ALGORITHM,
           iv: new Uint8Array(iv),
@@ -170,7 +188,6 @@ export class SecureCryptoManager {
       const decoder = new TextDecoder();
       return decoder.decode(decrypted);
     } catch (error) {
-      console.error('復号化処理中にエラーが発生しました:', error);
       
       // 具体的なエラータイプに応じたメッセージ
       if (error instanceof Error) {
@@ -247,7 +264,6 @@ export class SecureCryptoManager {
    * 全ての暗号化データを新しいキーで再暗号化
    */
   public static async rotateKey(): Promise<void> {
-    console.log('マスターキーローテーションを開始します...');
 
     try {
       // 現在の設定を取得（復号化済み）
@@ -261,9 +277,7 @@ export class SecureCryptoManager {
       // 新しいキーで設定を再暗号化して保存
       await ConfigManager.setConfig(currentConfig);
 
-      console.log('マスターキーローテーションが完了しました');
     } catch (error) {
-      console.error('マスターキーローテーション中にエラーが発生しました:', error);
       throw new Error('マスターキーローテーションに失敗しました');
     }
   }
@@ -281,14 +295,11 @@ export class SecureCryptoManager {
       const decrypted = await this.decrypt(encrypted);
 
       if (decrypted !== testData) {
-        console.error('健全性チェック失敗: 復号化データが一致しません');
         return false;
       }
 
-      console.log('暗号化システムの健全性チェックが完了しました');
       return true;
     } catch (error) {
-      console.error('健全性チェック中にエラーが発生しました:', error);
       return false;
     }
   }
@@ -298,7 +309,6 @@ export class SecureCryptoManager {
    */
   public static clearKeyCache(): void {
     this.cachedMasterKey = null;
-    console.log('マスターキーキャッシュをクリアしました');
   }
 
   /**

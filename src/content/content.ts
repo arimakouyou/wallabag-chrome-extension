@@ -22,7 +22,6 @@ class ContentScript {
       this.setupMessageListener();
       this.isInitialized = true;
     } catch (error) {
-      console.error('Content Script の初期化に失敗しました:', error);
     }
   }
 
@@ -35,7 +34,6 @@ class ContentScript {
         this.handleMessage(message)
           .then(sendResponse)
           .catch((error) => {
-            console.error('Content Script メッセージ処理エラー:', error);
             sendResponse({
               type: MessageType.ERROR_NOTIFICATION,
               payload: { error: error.message },
@@ -54,8 +52,13 @@ class ContentScript {
    * @returns レスポンス
    */
   private async handleMessage(
-    message: ExtensionMessage
+    message: ExtensionMessage | any
   ): Promise<ExtensionMessage> {
+    // PING応答処理
+    if (message.type === MessageType.PING) {
+      return { type: MessageType.PONG, payload: 'Content Script ready' };
+    }
+
     switch (message.type) {
       case MessageType.GET_PAGE_INFO:
         return {
@@ -345,7 +348,6 @@ class ContentScript {
             button.disabled = false;
           }, 2000);
         } catch (error) {
-          console.error('保存エラー:', error);
           button.textContent = '❌ 保存失敗';
           setTimeout(() => {
             button.textContent = '📖 Wallabagに保存';
@@ -356,9 +358,7 @@ class ContentScript {
 
       // ページに追加
       document.body.appendChild(button);
-      console.log('Wallabag保存ボタンを挿入しました');
     } catch (error) {
-      console.error('保存ボタンの挿入に失敗しました:', error);
     }
   }
 
@@ -382,9 +382,7 @@ class ContentScript {
             payload: pageInfo,
           });
 
-          console.log('キーボードショートカットでページを保存しました');
         } catch (error) {
-          console.error('キーボードショートカット保存エラー:', error);
         }
       }
     });

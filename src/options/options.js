@@ -30,9 +30,7 @@ async function initializeOptionsPage() {
     // タブの初期化
     initializeTabs();
 
-    console.log('オプションページが初期化されました');
   } catch (error) {
-    console.error('オプションページの初期化に失敗しました:', error);
     showMessage('error', '初期化に失敗しました: ' + error.message);
   }
 }
@@ -206,7 +204,6 @@ async function loadConfiguration() {
     // 接続状態の更新
     await updateConnectionStatus();
   } catch (error) {
-    console.error('設定の読み込みに失敗しました:', error);
     showMessage('error', '設定の読み込みに失敗しました');
   }
 }
@@ -220,7 +217,6 @@ async function getConfig() {
     const config = result[STORAGE_KEY] || {};
     return decryptSensitiveFields(config);
   } catch (error) {
-    console.error('設定の取得に失敗しました:', error);
     return {};
   }
 }
@@ -233,7 +229,6 @@ async function getBehaviorConfig() {
     const result = await chrome.storage.local.get(BEHAVIOR_KEY);
     return result[BEHAVIOR_KEY] || {};
   } catch (error) {
-    console.error('動作設定の取得に失敗しました:', error);
     return {};
   }
 }
@@ -282,7 +277,6 @@ async function handleConfigSubmit(event) {
 
     showMessage('success', '設定が正常に保存されました');
   } catch (error) {
-    console.error('設定の保存に失敗しました:', error);
     showMessage('error', '設定の保存に失敗しました: ' + error.message);
   } finally {
     // ボタンを有効化
@@ -332,7 +326,6 @@ async function handleTestConnection(event) {
       updateConnectionStatusDisplay('error', '接続エラー');
     }
   } catch (error) {
-    console.error('接続テストに失敗しました:', error);
     showMessage('error', '接続テストに失敗しました: ' + error.message);
     updateConnectionStatusDisplay('error', '接続エラー');
   } finally {
@@ -365,7 +358,6 @@ async function handleBehaviorSave(event) {
     await setBehaviorConfig(behavior);
     showMessage('success', '動作設定が保存されました');
   } catch (error) {
-    console.error('動作設定の保存に失敗しました:', error);
     showMessage('error', '動作設定の保存に失敗しました: ' + error.message);
   } finally {
     saveBtn.disabled = false;
@@ -406,7 +398,6 @@ async function handleExportConfig() {
 
     showMessage('success', '設定がエクスポートされました');
   } catch (error) {
-    console.error('設定のエクスポートに失敗しました:', error);
     showMessage('error', '設定のエクスポートに失敗しました: ' + error.message);
   }
 }
@@ -447,7 +438,6 @@ async function handleImportConfig(event) {
       '設定がインポートされました。保存ボタンをクリックして適用してください。'
     );
   } catch (error) {
-    console.error('設定のインポートに失敗しました:', error);
     showMessage('error', '設定のインポートに失敗しました: ' + error.message);
   } finally {
     // ファイル入力をクリア
@@ -480,7 +470,6 @@ async function handleClearData() {
 
     showMessage('success', 'すべてのデータが削除されました');
   } catch (error) {
-    console.error('データの削除に失敗しました:', error);
     showMessage('error', 'データの削除に失敗しました: ' + error.message);
   }
 }
@@ -552,7 +541,6 @@ async function testConnection(config) {
       return false;
     }
   } catch (error) {
-    console.error('接続テストエラー:', error);
     return false;
   }
 }
@@ -596,7 +584,6 @@ async function updateConnectionStatus() {
 
     updateConnectionStatusDisplay('disconnected', '認証が必要');
   } catch (error) {
-    console.error('接続状態の更新に失敗しました:', error);
     updateConnectionStatusDisplay('error', 'エラー');
   }
 }
@@ -732,7 +719,6 @@ function decryptSensitiveFields(config) {
       try {
         decrypted[field] = atob(decrypted[field]);
       } catch (error) {
-        console.warn(`フィールド ${field} の復号化に失敗しました:`, error);
       }
     }
   }

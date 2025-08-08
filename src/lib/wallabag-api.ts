@@ -70,10 +70,8 @@ export class WallabagApiClient {
         response.refresh_token
       );
 
-      console.log('認証が正常に完了しました');
       return response;
     } catch (error) {
-      console.error('認証に失敗しました:', error);
       throw this.createError(ErrorType.AUTH_ERROR, '認証に失敗しました', error);
     }
   }
@@ -111,10 +109,8 @@ export class WallabagApiClient {
         response.refresh_token
       );
 
-      console.log('トークンの更新が完了しました');
       return response;
     } catch (error) {
-      console.error('トークンの更新に失敗しました:', error);
       // トークンが無効な場合はクリア
       await ConfigManager.clearTokens();
       throw this.createError(
@@ -145,10 +141,8 @@ export class WallabagApiClient {
         body: JSON.stringify(entry),
       });
 
-      console.log('エントリが正常に作成されました:', response.id);
       return response;
     } catch (error) {
-      console.error('エントリ作成に失敗しました:', error);
       throw this.createError(
         ErrorType.API_ERROR,
         'エントリの作成に失敗しました',
@@ -199,7 +193,6 @@ export class WallabagApiClient {
 
       return response;
     } catch (error) {
-      console.error('エントリ一覧の取得に失敗しました:', error);
       throw this.createError(
         ErrorType.API_ERROR,
         'エントリ一覧の取得に失敗しました',
@@ -228,7 +221,6 @@ export class WallabagApiClient {
 
       return response;
     } catch (error) {
-      console.error('エントリの取得に失敗しました:', error);
       throw this.createError(
         ErrorType.API_ERROR,
         'エントリの取得に失敗しました',
@@ -267,7 +259,6 @@ export class WallabagApiClient {
 
       return true;
     } catch (error) {
-      console.error('接続テストに失敗しました:', error);
       return false;
     }
   }
@@ -278,12 +269,15 @@ export class WallabagApiClient {
    * @private
    */
   private async getValidAccessToken(): Promise<string> {
-    const config = await ConfigManager.getConfig();
+    let config = await ConfigManager.getConfig();
+    const isTokenValid = await ConfigManager.isTokenValid();
+
 
     // トークンの有効性をチェック
-    if ((await ConfigManager.isTokenValid()) && config.accessToken) {
+    if (isTokenValid && config.accessToken) {
       return config.accessToken;
     }
+
 
     // トークンが無効な場合、リフレッシュを試行
     if (config.refreshToken && config.clientId && config.clientSecret) {
@@ -295,16 +289,18 @@ export class WallabagApiClient {
           client_secret: config.clientSecret,
         });
 
+        // 更新されたトークンを直接返す（設定からの取得は不要）
         return refreshResponse.access_token;
       } catch (error) {
-        console.warn(
-          'トークンリフレッシュに失敗しました。再認証が必要です。',
-          error
-        );
+        
+        // リフレッシュトークンが無効な場合はクリア
+        await ConfigManager.clearTokens();
+        // 設定を再取得
+        config = await ConfigManager.getConfig();
       }
     }
 
-    // リフレッシュも失敗した場合は再認証
+    // リフレッシュに失敗した場合、パスワード認証でトークンを再取得
     if (
       config.clientId &&
       config.clientSecret &&
@@ -319,6 +315,7 @@ export class WallabagApiClient {
         password: config.password,
       });
 
+      // 更新されたトークンを直接返す（設定からの取得は不要）
       return authResponse.access_token;
     }
 
@@ -369,10 +366,6 @@ export class WallabagApiClient {
 
       // リトライ可能なエラーかどうか判定
       if (this.shouldRetry(error, retryCount)) {
-        console.warn(
-          `リクエストをリトライします (${retryCount + 1}/${this.options.retries}):`,
-          error
-        );
         await this.delay(Math.pow(2, retryCount) * 1000); // 指数バックオフ
         return this.makeRequest<T>(url, options, retryCount + 1);
       }
