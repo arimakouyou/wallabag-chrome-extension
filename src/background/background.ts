@@ -26,16 +26,26 @@ import { ConfigMigration } from '../lib/config-migration';
 class BackgroundService {
   private isInitialized = false;
   private isContextMenuSetup = false;
+  private keepAliveInterval: NodeJS.Timeout | null = null;
 
   /**
    * サービスワーカーの初期化
    */
   async initialize(): Promise<void> {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {
+      return;
+    }
 
-    console.log('Wallabag Chrome Extension Background Service を初期化中...');
 
     try {
+      // Chrome API の可用性チェック
+      if (!chrome.runtime) {
+        throw new Error('Chrome Runtime API が利用できません');
+      }
+      if (!chrome.storage) {
+        throw new Error('Chrome Storage API が利用できません');
+      }
+
       // 🔒 セキュリティ強化: 自動マイグレーション実行
       await ConfigMigration.autoMigrate();
 
@@ -48,10 +58,12 @@ class BackgroundService {
       // アイコンの初期状態設定
       await this.updateExtensionIcon();
 
+      // Service Worker生存維持機能の開始
+      this.startKeepAlive();
+
       this.isInitialized = true;
-      console.log('Background Service の初期化が完了しました');
     } catch (error) {
-      console.error('Background Service の初期化に失敗しました:', error);
+      throw error; // エラーを再投下して呼び出し元に伝播
     }
   }
 
@@ -65,7 +77,6 @@ class BackgroundService {
         this.handleMessage(message, sender)
           .then(sendResponse)
           .catch((error) => {
-            console.error('メッセージ処理エラー:', error);
             sendResponse({
               type: MessageType.ERROR_NOTIFICATION,
               payload: {
@@ -98,14 +109,22 @@ class BackgroundService {
       await this.setupContextMenus();
     });
 
-    // タブ更新時の処理
-    chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
-      if (changeInfo.status === 'complete' && tab.url) {
+    // タブ更新時のアイコン更新と Content Script 管理
+    chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+      if (changeInfo.status === 'complete' && tab?.id && tab.url) {
+        // アイコン更新
         await this.updateExtensionIcon();
+        
+        // Content Script の自動注入（主要サイトのみ）
+        if (this.shouldAutoInjectScript(tab.url)) {
+          try {
+            await this.ensureContentScriptInjected(tabId);
+          } catch (error) {
+          }
+        }
       }
     });
 
-    console.log('イベントリスナーが設定されました');
   }
 
   /**
@@ -118,9 +137,18 @@ class BackgroundService {
     message: ExtensionMessage,
     sender: chrome.runtime.MessageSender
   ): Promise<ExtensionMessage> {
-    console.log('メッセージを受信:', message.type, message.payload);
 
     switch (message.type) {
+      case MessageType.HEALTH_CHECK:
+        return {
+          type: MessageType.HEALTH_CHECK_RESPONSE,
+          payload: { 
+            status: 'healthy',
+            timestamp: Date.now(),
+            initialized: this.isInitialized
+          }
+        };
+
       case MessageType.SAVE_PAGE:
         if (isPageInfo(message.payload)) {
           return await this.handleSavePage(message.payload);
@@ -163,7 +191,6 @@ class BackgroundService {
    */
   private async handleSavePage(pageInfo: PageInfo): Promise<ExtensionMessage> {
     try {
-      console.log('ページを保存中:', pageInfo.url);
 
       // 設定の確認
       const isConfigured = await ConfigManager.isConfigured();
@@ -179,8 +206,8 @@ class BackgroundService {
         };
       }
 
-      // ページ保存実行
-      const entry = await savePage(pageInfo.url, pageInfo.title);
+      // ページ保存実行（認証エラー時の自動回復付き）
+      const entry = await this.savePageWithRetry(pageInfo.url, pageInfo.title);
 
       const result: SaveResult = {
         success: true,
@@ -199,20 +226,37 @@ class BackgroundService {
         payload: result,
       };
     } catch (error: unknown) {
-      console.error('ページ保存エラー:', error);
 
+      // エラーの詳細分析
       let errorMessage = 'ページの保存に失敗しました';
+      let errorType = ErrorType.UNKNOWN_ERROR;
+      let shouldShowReconnectSuggestion = false;
+      
       if (error instanceof Error) {
-        errorMessage = error.message;
+        const msg = error.message.toLowerCase();
+        if (msg.includes('401') || msg.includes('unauthorized') || msg.includes('invalid_token') || msg.includes('expired')) {
+          errorMessage = '認証エラーが発生しました。オプションページで「接続テスト」を実行してください。';
+          errorType = ErrorType.AUTH_ERROR;
+          shouldShowReconnectSuggestion = true;
+        } else if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection')) {
+          errorMessage = 'ネットワークエラーが発生しました。インターネット接続とWallabagサーバーの状態を確認してください。';
+          errorType = ErrorType.NETWORK_ERROR;
+        } else if (msg.includes('timeout')) {
+          errorMessage = 'タイムアウトが発生しました。しばらく時間をおいて再試行してください。';
+          errorType = ErrorType.NETWORK_ERROR;
+        } else {
+          errorMessage = `保存エラー: ${error.message}`;
+          errorType = error instanceof Error && 'type' in error
+            ? (error as { type: ErrorType }).type
+            : ErrorType.UNKNOWN_ERROR;
+        }
       }
 
       const result: SaveResult = {
         success: false,
         message: errorMessage,
-        error:
-          error instanceof Error && 'type' in error
-            ? (error as { type: string }).type
-            : ErrorType.UNKNOWN_ERROR,
+        error: errorType,
+        shouldReconnect: shouldShowReconnectSuggestion,
       };
 
       return {
@@ -302,6 +346,9 @@ class BackgroundService {
    */
   private async handleTestConnection(): Promise<ExtensionMessage> {
     try {
+      // 詳細な診断情報を取得（未使用の変数を削除）
+      
+
       const client = await createWallabagClient();
       
       // 実際のAPI呼び出しでトークンの有効性をテスト
@@ -319,7 +366,6 @@ class BackgroundService {
         },
       };
     } catch (error: unknown) {
-      console.warn('接続テストに失敗しました、再接続を試行します:', error);
       
       try {
         // 接続が失敗した場合、自動的に再認証を試行
@@ -327,6 +373,10 @@ class BackgroundService {
         const config = await ConfigManager.getConfig();
 
         if (config.clientId && config.clientSecret && config.username && config.password) {
+          
+          // 既存のトークンをクリア
+          await ConfigManager.clearTokens();
+          
           // 再認証を実行
           await client.authenticate({
             grant_type: 'password',
@@ -336,10 +386,10 @@ class BackgroundService {
             password: config.password,
           });
 
+          
           // 再認証後に再度接続をテスト
           await client.getEntries({ perPage: 1 });
 
-          console.log('自動再接続に成功しました');
           return {
             type: MessageType.AUTH_RESPONSE,
             payload: {
@@ -355,11 +405,21 @@ class BackgroundService {
           throw new Error('認証情報が不足しています');
         }
       } catch (reconnectError: unknown) {
-        console.error('自動再接続に失敗しました:', reconnectError);
         
         let errorMessage = '接続テストと自動再接続に失敗しました';
         if (reconnectError instanceof Error) {
-          errorMessage = reconnectError.message;
+          // より具体的なエラーメッセージを提供
+          if (reconnectError.message.includes('401') || reconnectError.message.includes('Unauthorized')) {
+            errorMessage = '認証情報が間違っています。設定を確認してください。';
+          } else if (reconnectError.message.includes('404') || reconnectError.message.includes('Not Found')) {
+            errorMessage = 'サーバーURLが間違っているか、Wallabag APIが利用できません。';
+          } else if (reconnectError.message.includes('timeout') || reconnectError.message.includes('TIMEOUT')) {
+            errorMessage = 'サーバーへの接続がタイムアウトしました。';
+          } else if (reconnectError.message.includes('fetch') || reconnectError.message.includes('network')) {
+            errorMessage = 'ネットワークエラーが発生しました。インターネット接続を確認してください。';
+          } else {
+            errorMessage = `認証に失敗しました: ${reconnectError.message}`;
+          }
         }
 
         return {
@@ -427,7 +487,6 @@ class BackgroundService {
       });
       return tab;
     } catch (error) {
-      console.error('アクティブタブの取得に失敗:', error);
       return undefined;
     }
   }
@@ -444,14 +503,21 @@ class BackgroundService {
     }
 
     try {
-      // Content Scriptからページ情報を取得
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        type: MessageType.GET_PAGE_INFO,
-      });
+      // Content Script注入の確認と必要に応じて注入
+      await this.ensureContentScriptInjected(tab.id);
+      
+      // Content Scriptからページ情報を取得（タイムアウト付き）
+      const response = await Promise.race([
+        chrome.tabs.sendMessage(tab.id, {
+          type: MessageType.GET_PAGE_INFO,
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Content Script応答タイムアウト')), 3000)
+        )
+      ]);
 
-      return response;
+      return response as ExtensionMessage;
     } catch (error: unknown) {
-      console.warn('Content Scriptからの取得に失敗、基本情報を使用:', error);
 
       // Content Scriptが読み込まれていない場合は基本情報のみ返す
       const pageInfo: PageInfo = {
@@ -463,6 +529,235 @@ class BackgroundService {
         type: MessageType.PAGE_INFO_RESPONSE,
         payload: pageInfo,
       };
+    }
+  }
+
+  /**
+   * Content Scriptが注入されているかを確認し、必要に応じて注入
+   */
+  private async ensureContentScriptInjected(tabId: number): Promise<void> {
+    try {
+      // タブの状態確認
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+        throw new Error('注入不可能なURL');
+      }
+
+      // ページの読み込み完了を待機
+      if (tab.status !== 'complete') {
+        await this.waitForTabComplete(tabId);
+      }
+
+      // Content Scriptの存在確認（短いタイムアウト）
+      await Promise.race([
+        chrome.tabs.sendMessage(tabId, { type: MessageType.PING }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('PING timeout')), 1000))
+      ]);
+      
+    } catch (error) {
+      
+      // Content Scriptが存在しない場合は注入を試行
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content.js']
+        });
+        
+        
+        // 注入後の確認
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // 注入確認
+        try {
+          await Promise.race([
+            chrome.tabs.sendMessage(tabId, { type: MessageType.PING }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('注入確認失敗')), 2000))
+          ]);
+        } catch (confirmError) {
+        }
+      } catch (injectionError) {
+        throw injectionError;
+      }
+    }
+  }
+
+  /**
+   * タブの読み込み完了を待機
+   */
+  private async waitForTabComplete(tabId: number, maxWait: number = 10000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      
+      const checkStatus = async () => {
+        try {
+          const tab = await chrome.tabs.get(tabId);
+          if (tab.status === 'complete') {
+            resolve();
+          } else if (Date.now() - startTime > maxWait) {
+            reject(new Error('タブ読み込みタイムアウト'));
+          } else {
+            setTimeout(checkStatus, 500);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      checkStatus();
+    });
+  }
+
+  /**
+   * Content Script の自動注入が必要かどうかを判断
+   */
+  private shouldAutoInjectScript(url: string): boolean {
+    // chrome:// や extension:// などのシステムページは除外
+    if (url.startsWith('chrome://') || 
+        url.startsWith('chrome-extension://') || 
+        url.startsWith('moz-extension://') ||
+        url.startsWith('edge://') ||
+        url.startsWith('about:')) {
+      return false;
+    }
+
+    // HTTPSとHTTPのページのみ対象
+    return url.startsWith('http://') || url.startsWith('https://');
+  }
+
+  /**
+   * 認証エラー時の自動回復機能付きページ保存
+   */
+  private async savePageWithRetry(url: string, title?: string, maxRetries: number = 2): Promise<any> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await savePage(url, title);
+      } catch (error: any) {
+        const errorMessage = error?.message?.toLowerCase() || '';
+        const isAuthError = errorMessage.includes('401') || 
+                           errorMessage.includes('unauthorized') || 
+                           errorMessage.includes('invalid_token') ||
+                           errorMessage.includes('expired');
+
+        if (isAuthError && attempt < maxRetries) {
+          
+          try {
+            // 強制的に認証状態を再確認・更新
+            await this.forceReauthenticate();
+          } catch (reauthError) {
+            // 再認証に失敗した場合は次の試行に進む
+          }
+        } else {
+          // 最後の試行、または認証エラー以外の場合はエラーを再投下
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('ページ保存に失敗しました（最大試行回数に達しました）');
+  }
+
+  /**
+   * 強制再認証
+   */
+  private async forceReauthenticate(): Promise<void> {
+    try {
+      const config = await ConfigManager.getConfig();
+      
+      if (!config.clientId || !config.clientSecret || !config.username || !config.password) {
+        throw new Error('認証情報が不足しています');
+      }
+
+      const client = await createWallabagClient();
+      
+      // トークンをクリアして強制的に再認証
+      await ConfigManager.clearTokens();
+      
+      // 新しいトークンを取得（authenticateメソッド内で自動保存される）
+      await client.authenticate({
+        grant_type: 'password',
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        username: config.username,
+        password: config.password,
+      });
+
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Service Worker生存維持機能
+   * 定期的にアクションを実行してService Workerが停止されないようにする
+   */
+  private startKeepAlive(): void {
+    // 既存のインターバルをクリア
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+    }
+
+    // 25秒ごとに軽量な処理を実行（30秒でタイムアウトするため）
+    this.keepAliveInterval = setInterval(() => {
+      // Chrome Storage APIの軽量な操作でService Workerを活性化
+      chrome.storage.local.get('__keepalive__').then(() => {
+      }).catch(() => {
+        // エラーは無視（Storage APIが利用できない場合）
+      });
+    }, 25000);
+
+  }
+
+  /**
+   * Service Worker生存維持機能の停止
+   * 必要に応じて外部から呼び出し可能
+   */
+  stopKeepAlive(): void {
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
+  }
+
+  /**
+   * 初期化状態をストレージに保存
+   */
+  async saveInitializationState(): Promise<void> {
+    try {
+      await chrome.storage.local.set({
+        '__service_worker_initialized__': {
+          timestamp: Date.now(),
+          isInitialized: this.isInitialized,
+          isContextMenuSetup: this.isContextMenuSetup
+        }
+      });
+    } catch (error) {
+    }
+  }
+
+  /**
+   * 初期化状態のgetter
+   */
+  get isServiceInitialized(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * 初期化状態をストレージから復元
+   */
+  async restoreInitializationState(): Promise<void> {
+    try {
+      const result = await chrome.storage.local.get('__service_worker_initialized__');
+      const state = result['__service_worker_initialized__'];
+      
+      if (state && typeof state === 'object') {
+        const timeDiff = Date.now() - (state.timestamp || 0);
+        // 5分以内の状態のみ復元
+        if (timeDiff < 5 * 60 * 1000) {
+          this.isInitialized = state.isInitialized || false;
+          this.isContextMenuSetup = state.isContextMenuSetup || false;
+        }
+      }
+    } catch (error) {
     }
   }
 
@@ -496,9 +791,8 @@ class BackgroundService {
 
       if (!result.success) {
         // 認証エラーの場合は自動再接続を試行
-        if (result.error === 'auth_error' || result.message.includes('認証')) {
+        if (result.error === ErrorType.AUTH_ERROR || result.error === 'auth_error' || result.message.includes('認証')) {
           try {
-            console.log('認証エラーを検出、自動再接続を試行中...');
             const testResponse = await this.handleTestConnection();
             const testResult = testResponse.payload as {
               isAuthenticated: boolean;
@@ -517,14 +811,12 @@ class BackgroundService {
               return;
             }
           } catch (reconnectError) {
-            console.warn('自動再接続に失敗しました:', reconnectError);
           }
         }
 
         await this.showNotification('エラー', result.message);
       }
     } catch (error: unknown) {
-      console.error('アクションクリック処理エラー:', error);
       await this.showNotification('エラー', 'ページの保存に失敗しました');
     }
   }
@@ -573,27 +865,23 @@ class BackgroundService {
               if (chrome.runtime.lastError) {
                 // 既に存在する場合のエラーは無視
                 if (chrome.runtime.lastError.message?.includes('duplicate id')) {
-                  console.log('コンテキストメニューは既に存在します');
                   resolve();
                 } else {
                   reject(new Error(chrome.runtime.lastError.message));
                 }
               } else {
-                console.log('コンテキストメニューを作成しました');
                 resolve();
               }
             });
           });
           this.isContextMenuSetup = true;
         } catch (createError) {
-          console.warn('コンテキストメニューの作成でエラーが発生しましたが続行します:', createError);
         }
       } else {
         // 設定されていない場合は設定済みフラグをセット（メニューが不要なため）
         this.isContextMenuSetup = true;
       }
     } catch (error) {
-      console.error('コンテキストメニューの設定に失敗しました:', error);
     }
   }
 
@@ -622,7 +910,6 @@ class BackgroundService {
       await chrome.action.setIcon({ path: iconPath });
       await chrome.action.setTitle({ title });
     } catch (error) {
-      console.error('アイコンの更新に失敗しました:', error);
     }
   }
 
@@ -643,7 +930,6 @@ class BackgroundService {
         message,
       });
     } catch (error) {
-      console.error('通知の表示に失敗しました:', error);
     }
   }
 }
@@ -651,16 +937,46 @@ class BackgroundService {
 // Service Workerのインスタンス
 const backgroundService = new BackgroundService();
 
+// 初期化フラグ（重複初期化防止）
+let isInitialized = false;
+
+// 安全な初期化関数
+async function safeInitialize(): Promise<void> {
+  if (isInitialized) {
+    return;
+  }
+  
+  
+  try {
+    // 初期化状態の復元を試行
+    await backgroundService.restoreInitializationState();
+    
+    // まだ初期化されていない場合のみ初期化実行
+    if (!backgroundService.isServiceInitialized) {
+      isInitialized = true;
+      
+      try {
+        await backgroundService.initialize();
+        await backgroundService.saveInitializationState();
+      } catch (error) {
+        isInitialized = false; // エラー時はフラグをリセット
+        throw error; // エラーを再投下
+      }
+    } else {
+      isInitialized = true;
+    }
+  } catch (error) {
+    isInitialized = false;
+    throw error;
+  }
+}
+
 // Service Worker起動時の初期化
-chrome.runtime.onStartup.addListener(async () => {
-  console.log('Service Worker起動中...');
-  await backgroundService.initialize();
-});
+chrome.runtime.onStartup.addListener(safeInitialize);
 
 // 拡張機能インストール時の初期化
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('拡張機能がインストール/更新されました:', details.reason);
-  await backgroundService.initialize();
+  await safeInitialize();
 
   // 初回インストール時は設定ページを開く
   if (details.reason === 'install') {
@@ -669,6 +985,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     });
   }
 });
+
+// Service Worker起動時に即座に初期化を実行
+safeInitialize();
 
 // テスト用にエクスポート
 export { BackgroundService };

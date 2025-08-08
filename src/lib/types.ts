@@ -54,6 +54,8 @@ export interface SaveResult {
   entryId?: number;
   /** エラー詳細（失敗時） */
   error?: string;
+  /** 再接続が推奨される場合（認証エラー時） */
+  shouldReconnect?: boolean;
 }
 
 /**
@@ -215,6 +217,12 @@ export enum MessageType {
   // 状態通知
   STATUS_UPDATE = 'STATUS_UPDATE',
   ERROR_NOTIFICATION = 'ERROR_NOTIFICATION',
+
+  // Service Worker管理
+  HEALTH_CHECK = 'HEALTH_CHECK',
+  HEALTH_CHECK_RESPONSE = 'HEALTH_CHECK_RESPONSE',
+  PING = 'PING',
+  PONG = 'PONG',
 }
 
 /**

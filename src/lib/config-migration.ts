@@ -31,7 +31,6 @@ export class ConfigMigration {
       // バージョンチェック
       return migrationStatus.version !== this.CURRENT_VERSION;
     } catch (error) {
-      console.error('マイグレーション必要性のチェックに失敗しました:', error);
       return true; // エラー時は安全のためマイグレーション実行
     }
   }
@@ -41,7 +40,6 @@ export class ConfigMigration {
    * 既存の設定を安全に新しい暗号化形式に変換
    */
   static async migrateFromBase64(): Promise<void> {
-    console.log('Base64からWeb Crypto APIへのマイグレーションを開始します...');
 
     try {
       // 既存設定の取得（直接ストレージから取得してマイグレーション防止）
@@ -49,7 +47,6 @@ export class ConfigMigration {
       const config = result[ConfigManager['STORAGE_KEY']] || {};
 
       if (Object.keys(config).length === 0) {
-        console.log('移行対象の設定データがありません');
         await this.markMigrationComplete();
         return;
       }
@@ -64,21 +61,16 @@ export class ConfigMigration {
           try {
             // Base64データかどうかを判定
             if (SecureCryptoManager.isBase64Data((config as any)[key])) {
-              console.log(`フィールド ${key} をBase64からWeb Crypto APIに移行中...`);
               
               // Base64デコード
               const decoded = atob((config as any)[key]);
               migratedConfig[key] = decoded;
               needsMigration = true;
               
-              console.log(`✅ フィールド ${key} の移行が完了しました`);
             } else if (await SecureCryptoManager.isWebCryptoData((config as any)[key])) {
-              console.log(`フィールド ${key} は既にWeb Crypto API形式です`);
             } else {
-              console.log(`フィールド ${key} はプレーンテキストまたは不明な形式です`);
             }
           } catch (error) {
-            console.error(`フィールド ${key} の移行中にエラーが発生しました:`, error);
             // エラーが発生したフィールドは空にして再入力を促す
             migratedConfig[key] = '';
           }
@@ -88,16 +80,13 @@ export class ConfigMigration {
       if (needsMigration) {
         // ConfigManagerを通して再保存（Web Crypto API暗号化が適用される）
         await ConfigManager.setConfig(migratedConfig);
-        console.log('✅ 設定のマイグレーションが完了しました');
       } else {
-        console.log('マイグレーション対象のデータがありませんでした');
       }
 
       // マイグレーション完了をマーク
       await this.markMigrationComplete();
 
     } catch (error) {
-      console.error('マイグレーション中にエラーが発生しました:', error);
       
       // エラー情報を保存
       await this.markMigrationError(error);
@@ -110,7 +99,6 @@ export class ConfigMigration {
    * 全てのデータをクリアして新しい形式で再構築
    */
   static async forceFullMigration(): Promise<void> {
-    console.log('強制的な完全マイグレーションを開始します...');
 
     try {
       // 暗号化システムの健全性チェック
@@ -129,9 +117,7 @@ export class ConfigMigration {
       // マイグレーション状態をリセット
       await chrome.storage.local.remove(this.MIGRATION_KEY);
 
-      console.log('✅ 完全マイグレーションが完了しました（設定の再入力が必要です）');
     } catch (error) {
-      console.error('完全マイグレーション中にエラーが発生しました:', error);
       throw error;
     }
   }
@@ -151,7 +137,6 @@ export class ConfigMigration {
       [this.MIGRATION_KEY]: migrationInfo
     });
 
-    console.log('マイグレーション完了情報を保存しました');
   }
 
   /**
@@ -195,7 +180,6 @@ export class ConfigMigration {
         error: migrationInfo.error
       };
     } catch (error) {
-      console.error('マイグレーション状態の取得に失敗しました:', error);
       return { version: 'unknown', status: 'error', error: 'Failed to get status' };
     }
   }
@@ -235,7 +219,6 @@ export class ConfigMigration {
       }
 
     } catch (error) {
-      console.error('互換性チェック中にエラーが発生しました:', error);
     }
 
     return result;
@@ -251,22 +234,16 @@ export class ConfigMigration {
       const compatibility = await this.compatibilityCheck();
       
       if (compatibility.overallStatus === 'error') {
-        console.error('システム互換性エラーのため、自動マイグレーションをスキップします');
         return;
       }
 
       if (compatibility.overallStatus === 'needs_migration') {
-        console.log('自動マイグレーションを開始します...');
         await this.migrateFromBase64();
-        console.log('✅ 自動マイグレーションが完了しました');
       } else {
-        console.log('マイグレーション不要です');
       }
 
     } catch (error) {
-      console.error('自動マイグレーション中にエラーが発生しました:', error);
       // 自動マイグレーションでエラーが発生した場合は、手動実行を促す
-      console.warn('手動でのマイグレーション実行を検討してください');
     }
   }
 }

@@ -31,7 +31,6 @@ export class ConfigManager {
       // 暗号化されたフィールドを復号化
       return await this.decryptSensitiveFields(config);
     } catch (error) {
-      console.error('設定の取得に失敗しました:', error);
       return {};
     }
   }
@@ -49,9 +48,7 @@ export class ConfigManager {
         [this.STORAGE_KEY]: encryptedConfig,
       });
 
-      console.log('設定が正常に保存されました');
     } catch (error) {
-      console.error('設定の保存に失敗しました:', error);
       throw new Error('設定の保存に失敗しました');
     }
   }
@@ -72,9 +69,7 @@ export class ConfigManager {
   static async clearConfig(): Promise<void> {
     try {
       await chrome.storage.local.remove(this.STORAGE_KEY);
-      console.log('設定がクリアされました');
     } catch (error) {
-      console.error('設定のクリアに失敗しました:', error);
       throw new Error('設定のクリアに失敗しました');
     }
   }
@@ -252,7 +247,6 @@ export class ConfigManager {
             // Web Crypto APIで真の暗号化
             newConfig[key as keyof Config] = await SecureCryptoManager.encrypt(value);
           } catch (error) {
-            console.error(`フィールド ${key} の暗号化に失敗:`, error);
             throw new Error(`設定の暗号化に失敗しました: ${key}`);
           }
         }
@@ -284,7 +278,6 @@ export class ConfigManager {
               newConfig[key as keyof Config] = await SecureCryptoManager.decrypt(value);
             } else if (SecureCryptoManager.isBase64Data(value)) {
               // Base64データの場合はマイグレーション
-              console.log(`フィールド ${key} をBase64からWeb Crypto APIに移行します`);
               const decoded = atob(value);
               newConfig[key as keyof Config] = decoded;
               needsMigration = true;
@@ -293,7 +286,6 @@ export class ConfigManager {
               newConfig[key as keyof Config] = value;
             }
           } catch (error) {
-            console.warn(`フィールド ${key} の復号化に失敗しました:`, error);
             // 復号化失敗時は空文字にしてユーザーに再入力を促す
             newConfig[key as keyof Config] = '';
           }
@@ -304,11 +296,8 @@ export class ConfigManager {
     // マイグレーションが必要な場合は再暗号化して保存
     if (needsMigration) {
       try {
-        console.log('Base64からWeb Crypto APIへの移行を実行中...');
         await this.setConfig(newConfig);
-        console.log('設定のマイグレーションが完了しました');
       } catch (error) {
-        console.error('設定のマイグレーション中にエラーが発生しました:', error);
       }
     }
 
@@ -368,24 +357,4 @@ export class ConfigManager {
     chrome.storage.onChanged.addListener(listener);
   }
 
-  /**
-   * デバッグ用：現在の設定を表示（機密情報は隠す）
-   */
-  static async debugConfig(): Promise<void> {
-    const config = await this.getConfig();
-    const safeConfig = { ...config };
-
-    // 機密情報をマスク
-    if (safeConfig.password)
-      safeConfig.password = '*'.repeat(safeConfig.password.length);
-    if (safeConfig.clientSecret)
-      safeConfig.clientSecret =
-        '*'.repeat(8) + safeConfig.clientSecret.slice(-4);
-    if (safeConfig.accessToken)
-      safeConfig.accessToken = safeConfig.accessToken.slice(0, 8) + '...';
-    if (safeConfig.refreshToken)
-      safeConfig.refreshToken = safeConfig.refreshToken.slice(0, 8) + '...';
-
-    console.log('現在の設定:', safeConfig);
-  }
 }

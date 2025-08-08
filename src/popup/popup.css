@@ -619,6 +619,7 @@ a:focus {
   outline-offset: 2px;
 }
 
+
 /* 高コントラストモード */
 @media (prefers-contrast: high) {
   .save-btn.primary {
@@ -633,4 +634,5 @@ a:focus {
   .footer-link {
     color: #0000ff;
   }
+
 }

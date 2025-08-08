@@ -10,6 +10,7 @@ import {
   SaveResult,
   ExtensionStatus,
   Config,
+  ErrorType,
   isPageInfo,
 } from '../lib/types';
 
@@ -62,6 +63,10 @@ class PopupController {
    */
   async initialize(): Promise<void> {
     try {
+      
+      // Service Workerの起動確認
+      await this.ensureServiceWorkerActive();
+
       // イベントリスナーの設定
       this.setupEventListeners();
 
@@ -71,8 +76,73 @@ class PopupController {
       // ページ情報の取得
       await this.loadPageInfo();
     } catch (error) {
-      console.error('Popup Controller の初期化に失敗しました:', error);
-      this.showError('初期化に失敗しました');
+      this.showError(`初期化に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Service Workerがアクティブかどうか確認し、必要に応じて起動
+   */
+  private async ensureServiceWorkerActive(): Promise<void> {
+    try {
+      
+      // Chrome Runtime APIが利用可能かチェック
+      if (!chrome.runtime) {
+        throw new Error('Chrome Runtime APIが利用できません');
+      }
+      
+      if (!chrome.runtime.sendMessage) {
+        throw new Error('Chrome Runtime sendMessage APIが利用できません');
+      }
+      
+      // 軽量なメッセージでService Workerの応答性をテスト
+      await Promise.race([
+        chrome.runtime.sendMessage({ type: MessageType.HEALTH_CHECK }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Service Worker応答なし (2秒タイムアウト)')), 2000)
+        )
+      ]);
+      
+    } catch (error) {
+      
+      // Chrome Runtime エラーのチェック
+      if (chrome.runtime.lastError) {
+        throw new Error(`Chrome Runtime エラー: ${chrome.runtime.lastError.message}`);
+      }
+      
+      // Service Worker起動のためにストレージ操作を実行
+      try {
+        
+        // Storage APIの確認
+        if (!chrome.storage || !chrome.storage.local) {
+          throw new Error('Chrome Storage APIが利用できません');
+        }
+        
+        await chrome.storage.local.set({ '__wakeup__': Date.now() });
+        
+        // 少し待ってから再度テスト
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        await Promise.race([
+          chrome.runtime.sendMessage({ type: MessageType.HEALTH_CHECK }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Service Worker再起動失敗 (3秒タイムアウト)')), 3000)
+          )
+        ]);
+        
+      } catch (wakeupError) {
+        
+        // 詳細なエラー情報を収集
+        const errorDetails = {
+          error: wakeupError instanceof Error ? wakeupError.message : String(wakeupError),
+          runtimeAvailable: !!chrome.runtime,
+          sendMessageAvailable: !!(chrome.runtime && chrome.runtime.sendMessage),
+          storageAvailable: !!(chrome.storage && chrome.storage.local),
+          runtimeLastError: (chrome.runtime.lastError as any)?.message
+        };
+        
+        throw new Error(`Background Serviceと通信できません: ${JSON.stringify(errorDetails)}`);
+      }
     }
   }
 
@@ -146,6 +216,7 @@ class PopupController {
         }
       }
     });
+
   }
 
   /**
@@ -189,8 +260,14 @@ class PopupController {
             this.hideSuccess();
           }, 3000);
         } else if (!testResult.isAuthenticated && testResult.error) {
-          // 接続テスト失敗で再接続もできない場合
-          this.showError(`接続エラー: ${testResult.error}`);
+          // 接続テスト失敗で再接続もできない場合  
+          this.showError(testResult.error);
+          
+          // 設定画面へのガイダンスを表示
+          if (testResult.error.includes('認証情報が間違っています') || 
+              testResult.error.includes('サーバーURLが間違っている')) {
+            this.showReconnectButton();
+          }
         }
       } else {
         this.isAuthenticated = false;
@@ -200,7 +277,6 @@ class PopupController {
       this.updateStatusIndicator();
       this.updateUI();
     } catch (error) {
-      console.error('状態確認エラー:', error);
       this.updateStatusIndicator(ExtensionStatus.ERROR);
       this.showError(
         `拡張機能の状態を確認できませんでした: ${error instanceof Error ? error.message : error}`
@@ -225,13 +301,24 @@ class PopupController {
         this.currentPageInfo = response.payload;
         this.updatePageInfo();
       } else {
-        console.error('無効なページ情報レスポンス:', response.payload);
         this.elements.pageTitle.textContent = 'ページ情報の形式が無効です';
         this.elements.pageUrl.textContent = '';
       }
     } catch (error) {
-      console.error('ページ情報取得エラー:', error);
-      this.elements.pageTitle.textContent = `ページ情報を取得できませんでした: ${error instanceof Error ? error.message : error}`;
+      
+      // エラーの詳細な分類
+      let errorMessage = 'ページ情報を取得できませんでした';
+      if (error instanceof Error) {
+        if (error.message.includes('Could not establish connection')) {
+          errorMessage = '通信エラー: ページ読み込み完了後に再試行してください';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'タイムアウト: ページの読み込みに時間がかかっています';
+        } else {
+          errorMessage = `エラー: ${error.message}`;
+        }
+      }
+      
+      this.elements.pageTitle.textContent = errorMessage;
       this.elements.pageUrl.textContent = '';
     } finally {
       this.elements.statusMessage.textContent = '';
@@ -287,9 +374,8 @@ class PopupController {
         this.setSaveButtonState('error');
         
         // 認証エラーの場合は自動再接続を試行
-        if (result.error === 'auth_error' || result.message.includes('認証')) {
+        if (result.error === ErrorType.AUTH_ERROR || result.error === 'auth_error' || result.message.includes('認証')) {
           try {
-            console.log('認証エラーを検出、自動再接続を試行中...');
             const testResponse = await this.sendMessage({
               type: MessageType.TEST_CONNECTION,
             });
@@ -314,14 +400,17 @@ class PopupController {
               return;
             }
           } catch (reconnectError) {
-            console.warn('自動再接続に失敗しました:', reconnectError);
           }
         }
         
         this.showError(result.message || '保存に失敗しました');
+        
+        // 認証エラーの場合は再接続ボタンを表示
+        if (result.shouldReconnect) {
+          this.showReconnectButton();
+        }
       }
     } catch (error: unknown) {
-      console.error('保存エラー:', error);
       this.setSaveButtonState('error');
       const errorMessage =
         error instanceof Error ? error.message : 'ページの保存に失敗しました';
@@ -545,6 +634,32 @@ class PopupController {
   private hideError(): void {
     this.elements.errorMessage.style.display = 'none';
     this.elements.errorMessage.classList.remove('fade-in');
+    
+    // 再接続ボタンがあれば削除
+    const reconnectButton = this.elements.errorMessage.querySelector('.reconnect-button');
+    if (reconnectButton) {
+      reconnectButton.remove();
+    }
+  }
+
+  /**
+   * 再接続ボタンの表示
+   */
+  private showReconnectButton(): void {
+    // エラーメッセージに再接続ボタンを追加
+    if (!this.elements.errorMessage.querySelector('.reconnect-button')) {
+      const reconnectButton = document.createElement('button');
+      reconnectButton.className = 'reconnect-button';
+      reconnectButton.textContent = '設定を確認';
+      reconnectButton.style.cssText = 'margin-top: 8px; padding: 4px 8px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;';
+      
+      reconnectButton.onclick = async () => {
+        // 設定ページを直接開く
+        this.openOptionsPage();
+      };
+      
+      this.elements.errorMessage.appendChild(reconnectButton);
+    }
   }
 
   /**
@@ -608,6 +723,7 @@ class PopupController {
     });
     window.close();
   }
+
 
   /**
    * Background Scriptにメッセージを送信
